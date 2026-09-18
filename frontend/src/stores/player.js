@@ -33,6 +33,10 @@ export const usePlayerStore = defineStore('player', () => {
   const isOnline = ref(navigator.onLine)
   const offlineIds = ref(loadOfflineIds())
   const downloadingIds = ref(new Set())
+  // Incrémenté à chaque déplacement manuel de la tête de lecture — le store
+  // Jam s'appuie là-dessus pour savoir quand rebroadcaster l'état à l'hôte,
+  // sans avoir à connaître les détails de seek()/du <audio>.
+  const seekVersion = ref(0)
   let lastPersist = 0
   let shuffleOrder = []
   let shufflePos = 0
@@ -361,6 +365,30 @@ export const usePlayerStore = defineStore('player', () => {
     if (!audio.value || !isFinite(time)) return
     audio.value.currentTime = Math.max(0, Math.min(time, duration.value || time))
     progress.value = audio.value.currentTime
+    seekVersion.value++
+  }
+
+  // Applique un état de lecture reçu de l'hôte d'un Jam (voir stores/jam.js).
+  // `updatedAt` est l'horodatage serveur auquel `positionMs` était exact : on
+  // extrapole le temps écoulé depuis pour rattraper la position réelle.
+  async function applyJamState({ track, positionMs = 0, isPlaying: playing, updatedAt }) {
+    initAudio()
+    const targetSeconds = Math.max(0, (positionMs + (playing ? Date.now() - updatedAt : 0)) / 1000)
+
+    if (track && currentTrack.value?.id !== track.id) {
+      currentTrack.value = track
+      queue.value = [track]
+      await loadSource(track, targetSeconds)
+    } else if (audio.value && Math.abs(audio.value.currentTime - targetSeconds) > 1.2) {
+      audio.value.currentTime = targetSeconds
+      progress.value = targetSeconds
+    }
+
+    if (playing) {
+      try { await audio.value.play() } catch { /* nécessite parfois une interaction utilisateur */ }
+    } else {
+      pause()
+    }
   }
 
   function setVolume(v) {
@@ -383,9 +411,9 @@ export const usePlayerStore = defineStore('player', () => {
 
   return {
     currentTrack, queue, isPlaying, progress, duration, volume, progressPercent, isExpanded,
-    shuffle, eqGains, isOnline, offlineIds,
+    shuffle, eqGains, isOnline, offlineIds, seekVersion,
     play, pause, togglePlay, next, prev, seek, setVolume, formatTime, restoreLastTrack, expand, collapse,
-    toggleShuffle, setEqGain, resetEq,
+    toggleShuffle, setEqGain, resetEq, applyJamState,
     downloadForOffline, removeOffline, isOfflineAvailable, isDownloading
   }
 })

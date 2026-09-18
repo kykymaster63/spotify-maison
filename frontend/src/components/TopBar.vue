@@ -11,6 +11,12 @@
     </router-link>
 
     <div class="actions">
+      <button class="icon-btn" :class="{ active: jam.isActive }" @click="showJam = true" title="Jam">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M4 18V9m4 9V5m4 13v-6m4 6V3m4 15v-9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <span v-if="jam.isActive" class="jam-dot"></span>
+      </button>
       <router-link to="/friends" class="icon-btn" title="Amis">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.6"/>
@@ -32,15 +38,22 @@
         </svg>
       </button>
     </div>
+
+    <JamModal v-model="showJam" />
   </header>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
+import { useJamStore } from '../stores/jam.js'
 import { useRouter } from 'vue-router'
+import JamModal from './JamModal.vue'
 
 const auth = useAuthStore()
+const jam = useJamStore()
 const router = useRouter()
+const showJam = ref(false)
 function logout() { auth.logout(); router.push('/login') }
 </script>
 
@@ -70,10 +83,18 @@ function logout() { auth.logout(); router.push('/login') }
 
 .actions { display: flex; align-items: center; gap: 4px; }
 .icon-btn {
+  position: relative;
   display: flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: 50%;
   background: none; border: none; color: var(--text-2); cursor: pointer;
   transition: color .15s, background .15s; text-decoration: none;
 }
 .icon-btn:hover { color: var(--text); background: var(--glass); }
+.icon-btn.active { color: var(--accent-2); }
+.jam-dot {
+  position: absolute; top: 4px; right: 4px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 0 2px var(--bg-2);
+}
 </style>

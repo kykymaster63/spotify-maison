@@ -77,7 +77,7 @@ export async function friendsRoutes(fastify) {
       .where('friendships.status', 'accepted')
       .select(
         'users.id as user_id', 'users.username', 'users.avatar_url',
-        'users.current_track_at',
+        'users.current_track_at', 'users.active_jam_code',
         'tracks.id as track_id', 'tracks.title', 'tracks.artist', 'tracks.cover_url'
       )
   })

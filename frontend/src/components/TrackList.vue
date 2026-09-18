@@ -69,6 +69,12 @@
             </svg>
             Ajouter à une playlist
           </button>
+          <button v-if="jam.isActive" class="menu-item" @click="addToJam(track)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M4 18V9m4 9V5m4 13v-6m4 6V3m4 15v-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            Ajouter au Jam
+          </button>
           <button
             v-if="!player.isOfflineAvailable(track.id)" class="menu-item"
             :disabled="player.isDownloading(track.id)" @click="downloadOffline(track)"
@@ -117,12 +123,14 @@ import { usePlayerStore } from '../stores/player.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useToastStore } from '../stores/toast.js'
 import { useFavoritesStore } from '../stores/favorites.js'
+import { useJamStore } from '../stores/jam.js'
 import AddToPlaylistModal from './AddToPlaylistModal.vue'
 const props = defineProps({ tracks: { type: Array, default: () => [] } })
 const player = usePlayerStore()
 const auth = useAuthStore()
 const toast = useToastStore()
 const favorites = useFavoritesStore()
+const jam = useJamStore()
 const modalTrack = ref(null)
 const openMenuId = ref(null)
 
@@ -138,8 +146,15 @@ function openAddModal(track) {
   openMenuId.value = null
 }
 
+function addToJam(track) {
+  jam.addTrack(track)
+  openMenuId.value = null
+  toast.success(`"${track.title}" ajouté à la file du Jam`)
+}
+
 function playTrack(track) {
   if (track.status !== 'ready') return
+  if (jam.isFollower) jam.leave() // choisir un autre morceau me sort du Jam que je suivais
   player.play(track, props.tracks.filter(t => t.status === 'ready'))
 }
 function fmt(s) {
@@ -190,7 +205,11 @@ async function removeTrack(track) {
 .track-list { display: flex; flex-direction: column; }
 .track-row {
   display: grid;
-  grid-template-columns: 32px 40px 1fr auto auto auto;
+  /* Colonne durée en largeur fixe (pas "auto") : chaque ligne est sa
+     propre grille indépendante, donc une durée à 2 chiffres de minutes
+     (10min+) élargit la colonne "auto" et décale les colonnes suivantes
+     (coeur, menu) par rapport aux lignes plus courtes. */
+  grid-template-columns: 32px 40px 1fr auto 44px auto;
   align-items: center; gap: 12px;
   padding: 8px 10px; border-radius: var(--r-sm);
   cursor: pointer; transition: background .15s;
@@ -233,7 +252,7 @@ async function removeTrack(track) {
 .added-by { color: var(--text-3); }
 
 /* Durée */
-.track-duration { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.track-duration { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; text-align: right; }
 
 /* Menu "..." (ajouter à une playlist / supprimer) */
 .row-menu { position: relative; }

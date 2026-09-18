@@ -88,10 +88,12 @@ import axios from 'axios'
 import TrackList from '../components/TrackList.vue'
 import { usePlayerStore } from '../stores/player.js'
 import { useToastStore } from '../stores/toast.js'
+import { useJamStore } from '../stores/jam.js'
 
 const route = useRoute()
 const player = usePlayerStore()
 const toast = useToastStore()
+const jam = useJamStore()
 const playlist = ref(null)
 const readyTracks = computed(() => playlist.value?.tracks?.filter(t => t.status === 'ready') || [])
 
@@ -102,6 +104,7 @@ let debounceTimer
 
 function playAll() {
   if (!readyTracks.value.length) return
+  if (jam.isFollower) jam.leave()
   player.play(readyTracks.value[0], readyTracks.value)
 }
 

@@ -45,12 +45,14 @@
         <div class="avatar">{{ u.username[0]?.toUpperCase() }}</div>
         <div class="friend-info">
           <span class="username">{{ u.username }}</span>
-          <span v-if="listeningMap[u.id]" class="now-playing">
+          <span v-if="jamMap[u.id]" class="now-playing jam">🎉 En Jam</span>
+          <span v-else-if="listeningMap[u.id]" class="now-playing">
             🎵 {{ listeningMap[u.id].title }} <span v-if="listeningMap[u.id].artist">· {{ listeningMap[u.id].artist }}</span>
           </span>
           <span v-else class="hint">Rien en écoute</span>
         </div>
-        <img v-if="listeningMap[u.id]?.cover_url" :src="listeningMap[u.id].cover_url" class="mini-cover" alt="" />
+        <img v-if="!jamMap[u.id] && listeningMap[u.id]?.cover_url" :src="listeningMap[u.id].cover_url" class="mini-cover" alt="" />
+        <button v-if="jamMap[u.id]" class="btn btn-primary sm" @click="joinFriendJam(u)">Rejoindre</button>
         <button class="icon-action" @click="removeRelation(u)" title="Retirer">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
@@ -75,8 +77,10 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import { useToastStore } from '../stores/toast.js'
+import { useJamStore } from '../stores/jam.js'
 
 const toast = useToastStore()
+const jam = useJamStore()
 
 const query = ref('')
 const results = ref([])
@@ -85,6 +89,7 @@ let debounceTimer
 
 const friends = reactive({ accepted: [], incoming: [], outgoing: [] })
 const listeningMap = reactive({})
+const jamMap = reactive({})
 let pollTimer
 
 function onInput() {
@@ -109,11 +114,20 @@ async function loadFriends() {
 async function loadListening() {
   const { data } = await axios.get('/api/friends/listening')
   for (const key of Object.keys(listeningMap)) delete listeningMap[key]
+  for (const key of Object.keys(jamMap)) delete jamMap[key]
   for (const row of data) {
     if (row.track_id) {
       listeningMap[row.user_id] = { title: row.title, artist: row.artist, cover_url: row.cover_url }
     }
+    if (row.active_jam_code) jamMap[row.user_id] = row.active_jam_code
   }
+}
+
+async function joinFriendJam(u) {
+  const code = jamMap[u.id]
+  if (!code) return
+  await jam.join(code)
+  toast.success(`Jam de ${u.username} rejoint`)
 }
 
 async function sendRequest(u) {

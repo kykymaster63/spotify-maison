@@ -47,7 +47,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://backend:3000',
-        changeOrigin: true
+        changeOrigin: true,
+        ws: true // nécessaire pour que le canal temps réel du Jam (websocket) passe par le proxy dev
       }
     }
   }

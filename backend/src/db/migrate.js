@@ -36,6 +36,10 @@ async function migrate() {
   await ensureColumn('users', 'current_track_at', t => {
     t.timestamp('current_track_at')
   })
+  // Code du Jam en cours (visible par les amis pour les inviter à rejoindre)
+  await ensureColumn('users', 'active_jam_code', t => {
+    t.string('active_jam_code', 8)
+  })
 
   // ─── Tracks ───────────────────────────────────────────────────────
   await ensureTable('tracks', t => {

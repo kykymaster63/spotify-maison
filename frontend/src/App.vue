@@ -18,6 +18,7 @@ import { useAuthStore } from './stores/auth.js'
 import { usePlayerStore } from './stores/player.js'
 import { useToastStore } from './stores/toast.js'
 import { useFavoritesStore } from './stores/favorites.js'
+import { useJamStore } from './stores/jam.js'
 import Player from './components/Player.vue'
 import Navbar from './components/Navbar.vue'
 import TopBar from './components/TopBar.vue'
@@ -27,6 +28,7 @@ const auth = useAuthStore()
 const player = usePlayerStore()
 const toast = useToastStore()
 const favorites = useFavoritesStore()
+const jam = useJamStore()
 
 function onOffline() { toast.error('Hors ligne — seuls les morceaux téléchargés sont disponibles') }
 function onOnline() { toast.success('Connexion rétablie') }
@@ -37,6 +39,16 @@ function onKeydown(e) {
   const tag = document.activeElement?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA') return
   if (!player.currentTrack) return
+
+  // Pendant un Jam suivi, seul l'hôte contrôle la transport (lecture/pause,
+  // avance/retour, piste suivante/précédente) — le volume reste local à
+  // chacun donc n'est pas concerné.
+  const transportKeys = ['Space', 'ArrowRight', 'ArrowLeft', 'KeyN', 'KeyP']
+  if (transportKeys.includes(e.code) && jam.isFollower) {
+    e.preventDefault()
+    jam.guardControl()
+    return
+  }
 
   switch (e.code) {
     case 'Space':

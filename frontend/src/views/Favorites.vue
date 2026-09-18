@@ -34,10 +34,12 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import TrackList from '../components/TrackList.vue'
 import { usePlayerStore } from '../stores/player.js'
+import { useJamStore } from '../stores/jam.js'
 
 const tracks = ref([])
 const loading = ref(true)
 const player = usePlayerStore()
+const jam = useJamStore()
 
 async function load() {
   loading.value = true
@@ -46,7 +48,9 @@ async function load() {
   loading.value = false
 }
 function playAll() {
-  if (tracks.value.length) player.play(tracks.value[0], tracks.value)
+  if (!tracks.value.length) return
+  if (jam.isFollower) jam.leave()
+  player.play(tracks.value[0], tracks.value)
 }
 onMounted(load)
 </script>

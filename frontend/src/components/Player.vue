@@ -32,12 +32,12 @@
 
       <!-- Contrôles -->
       <div class="player-controls">
-        <button class="ctrl" @click="player.prev()" title="Précédent">
+        <button class="ctrl" @click="guarded(player.prev)" title="Précédent">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
           </svg>
         </button>
-        <button class="ctrl play" @click="player.togglePlay()">
+        <button class="ctrl play" @click="guarded(player.togglePlay)">
           <svg v-if="!player.isPlaying" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z"/>
           </svg>
@@ -45,7 +45,7 @@
             <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
           </svg>
         </button>
-        <button class="ctrl" @click="player.next()" title="Suivant">
+        <button class="ctrl" @click="guarded(player.next)" title="Suivant">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/>
           </svg>
@@ -87,18 +87,28 @@
 <script setup>
 import { usePlayerStore } from '../stores/player.js'
 import { useFavoritesStore } from '../stores/favorites.js'
+import { useJamStore } from '../stores/jam.js'
 import NowPlaying from './NowPlaying.vue'
 
 const player = usePlayerStore()
 const favorites = useFavoritesStore()
+const jam = useJamStore()
 let dragging = false
 
+// Pendant un Jam suivi (pas hôte), les contrôles de transport sont bloqués :
+// seul l'hôte décide de ce qui joue.
+function guarded(fn) {
+  if (jam.guardControl()) fn()
+}
+
 function seekFromEvent(e) {
+  if (jam.isFollower) return
   const rect = e.currentTarget.getBoundingClientRect()
   const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
   player.seek(ratio * player.duration)
 }
 function onSeekStart(e) {
+  if (!jam.guardControl()) return
   dragging = true
   e.currentTarget.setPointerCapture?.(e.pointerId)
   seekFromEvent(e)

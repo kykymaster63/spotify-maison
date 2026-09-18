@@ -61,14 +61,14 @@
             <path d="M18.5 4l2.5 2.5-2.5 2.5M18.5 15.5l2.5 2.5-2.5 2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <button class="ctrl-big" @click="player.prev()" title="Précédent">
+        <button class="ctrl-big" @click="guarded(player.prev)" title="Précédent">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
         </button>
-        <button class="ctrl-big play" @click="player.togglePlay()">
+        <button class="ctrl-big play" @click="guarded(player.togglePlay)">
           <svg v-if="!player.isPlaying" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
         </button>
-        <button class="ctrl-big" @click="player.next()" title="Suivant">
+        <button class="ctrl-big" @click="guarded(player.next)" title="Suivant">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
         </button>
         <button class="ctrl-small" style="visibility:hidden" aria-hidden="true">
@@ -91,17 +91,24 @@
 import { ref, computed } from 'vue'
 import { usePlayerStore } from '../stores/player.js'
 import { useFavoritesStore } from '../stores/favorites.js'
+import { useJamStore } from '../stores/jam.js'
 
 const player = usePlayerStore()
 const favorites = useFavoritesStore()
+const jam = useJamStore()
+
+function guarded(fn) {
+  if (jam.guardControl()) fn()
+}
 
 let seeking = false
 function seekFromEvent(e) {
+  if (jam.isFollower) return
   const rect = e.currentTarget.getBoundingClientRect()
   const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
   player.seek(ratio * player.duration)
 }
-function onSeekStart(e) { seeking = true; e.currentTarget.setPointerCapture?.(e.pointerId); seekFromEvent(e) }
+function onSeekStart(e) { if (!jam.guardControl()) return; seeking = true; e.currentTarget.setPointerCapture?.(e.pointerId); seekFromEvent(e) }
 function onSeekMove(e) { if (seeking) seekFromEvent(e) }
 function onSeekEnd() { seeking = false }
 
