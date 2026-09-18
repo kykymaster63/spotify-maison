@@ -32,7 +32,7 @@
       </svg>
       <input
         v-model="query" @input="onInput" @keydown.enter="runSearch"
-        :placeholder="`Titre, artiste... ou une URL ${sourceLabel}`" class="search-input" autofocus
+        :placeholder="`Titre, artiste, une URL ${sourceLabel}... ou un lien de playlist Spotify`" class="search-input" autofocus
       />
       <span v-if="loading" class="spinner-sm"></span>
       <button v-else-if="query" @click="clear" class="clear-btn">
@@ -57,7 +57,7 @@
         @preview="togglePreview(r)" @add="addTrack(r)" />
     </div>
 
-    <div v-else-if="!loading && searched" class="empty-search">
+    <div v-else-if="!loading && searched && !errorMsg" class="empty-search">
       <p>Aucun résultat pour "{{ query }}"</p>
     </div>
 
@@ -89,11 +89,13 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useToastStore } from '../stores/toast.js'
 import MediaCard from '../components/MediaCard.vue'
 
 const toast = useToastStore()
+const router = useRouter()
 
 const source = ref('youtube')
 const sourceLabel = computed(() => source.value === 'soundcloud' ? 'SoundCloud' : 'YouTube')
@@ -111,14 +113,36 @@ const currentPreviewUrl = ref(null)
 
 const adding = reactive(new Set())
 const added = reactive(new Set())
+// Ids YouTube déjà en bibliothèque (ou en import) — pour signaler "déjà
+// ajouté" directement dans les résultats de recherche, avant même de cliquer.
+const existingYoutubeIds = ref(new Set())
 
 const pending = ref([])
 let pollTimer
 
 function isUrl(s) { return /^https?:\/\//i.test(s.trim()) }
+function isSpotifyPlaylistUrl(s) { return /open\.spotify\.com\/playlist\//i.test(s) }
 function isPlaying(url) { return currentPreviewUrl.value === url }
 function isAdding(url) { return adding.has(url) }
-function isAdded(url) { return added.has(url) }
+function extractYoutubeId(url) {
+  const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/)
+  return m ? m[1] : null
+}
+function isAdded(url) {
+  if (added.has(url)) return true
+  const id = extractYoutubeId(url)
+  if (!id) return false
+  if (existingYoutubeIds.value.has(id)) return true
+  return pending.value.some(t => t.source_url && extractYoutubeId(t.source_url) === id)
+}
+
+async function loadExistingIds() {
+  try {
+    const { data } = await axios.get('/api/tracks')
+    const ids = data.map(t => t.source_url && extractYoutubeId(t.source_url)).filter(Boolean)
+    existingYoutubeIds.value = new Set(ids)
+  } catch { /* silencieux, la détection proactive redevient juste indisponible */ }
+}
 
 function setSource(s) {
   if (source.value === s) return
@@ -143,6 +167,12 @@ async function runSearch() {
   const q = query.value.trim()
   if (!q) return
   clearTimeout(debounceTimer)
+
+  if (isSpotifyPlaylistUrl(q)) {
+    await importSpotifyPlaylist(q)
+    return
+  }
+
   loading.value = true
   errorMsg.value = ''
   try {
@@ -158,6 +188,22 @@ async function runSearch() {
   } catch (e) {
     errorMsg.value = e.response?.data?.error || 'Recherche impossible'
     results.value = []; singlePreview.value = null
+  } finally {
+    loading.value = false
+    searched.value = true
+  }
+}
+
+async function importSpotifyPlaylist(url) {
+  loading.value = true
+  errorMsg.value = ''
+  try {
+    const { data } = await axios.post('/api/import/spotify-playlist', { url })
+    toast.success(`Playlist "${data.name}" créée — import en arrière-plan, les morceaux vont apparaître au fil du téléchargement`)
+    clear()
+    router.push(`/playlist/${data.id}`)
+  } catch (e) {
+    errorMsg.value = e.response?.data?.error || 'Import de la playlist Spotify impossible'
   } finally {
     loading.value = false
     searched.value = true
@@ -191,7 +237,7 @@ function onAudioError() {
 }
 
 async function addTrack(item) {
-  if (adding.has(item.url) || added.has(item.url)) return
+  if (adding.has(item.url) || isAdded(item.url)) return
   adding.add(item.url)
   try {
     const { data } = await axios.post('/api/tracks/import', { url: item.url })
@@ -199,7 +245,12 @@ async function addTrack(item) {
     toast.success(`"${data.title}" ajouté — téléchargement en cours...`)
     await refreshPending()
   } catch (e) {
-    toast.error(e.response?.data?.error || "Impossible d'ajouter ce morceau")
+    if (e.response?.status === 409) {
+      added.add(item.url)
+      toast.error('Déjà dans ta bibliothèque')
+    } else {
+      toast.error(e.response?.data?.error || "Impossible d'ajouter ce morceau")
+    }
   } finally {
     adding.delete(item.url)
   }
@@ -226,6 +277,7 @@ async function refreshPending() {
 
 onMounted(() => {
   refreshPending()
+  loadExistingIds()
   pollTimer = setInterval(refreshPending, 3500)
 })
 onUnmounted(() => {

@@ -1,6 +1,6 @@
 import { db } from '../db/knex.js'
 import { uploadFile, getSignedUrl, getStream, getStat, getPartialStream, deleteFile } from '../services/storage.js'
-import { getMediaInfo, detectSource } from '../services/importer.js'
+import { getMediaInfo, detectSource, extractYoutubeId } from '../services/importer.js'
 import { getDuration, detectSilenceTrim } from '../services/audioAnalysis.js'
 import { downloadQueue } from '../services/queue.js'
 import { randomUUID } from 'crypto'
@@ -179,6 +179,19 @@ export async function tracksRoutes(fastify) {
   }, async (req, reply) => {
     const { url } = req.body
     const source = detectSource(url)
+
+    // Détection de doublon : compare par id YouTube extrait (pas juste l'URL
+    // brute, qui peut varier avec youtu.be/&list=/&t=... pour la même vidéo)
+    // pour ne pas retélécharger un morceau déjà présent ou en cours d'import.
+    const existingUrls = await db('tracks')
+      .where({ source })
+      .whereIn('status', ['ready', 'pending', 'downloading'])
+      .pluck('source_url')
+    const newId = source === 'youtube' ? extractYoutubeId(url) : null
+    const isDuplicate = existingUrls.some(u => u && (newId ? extractYoutubeId(u) === newId : u === url))
+    if (isDuplicate) {
+      return reply.code(409).send({ error: 'Ce morceau est déjà dans ta bibliothèque (ou en cours d\'import)' })
+    }
 
     // Récupère les métadonnées sans télécharger
     const info = await getMediaInfo(url)

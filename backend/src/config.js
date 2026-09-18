@@ -16,5 +16,12 @@ export const config = {
     secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin123',
     bucket: process.env.MINIO_BUCKET || 'spotify-maison',
     useSSL: false
+  },
+  spotify: {
+    // Compte développeur Spotify gratuit (developer.spotify.com/dashboard) :
+    // ne sert qu'à lire les playlists publiques, aucune validation par
+    // Spotify n'est nécessaire pour ce niveau d'accès.
+    clientId: process.env.SPOTIFY_CLIENT_ID || '',
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET || ''
   }
 }

@@ -27,6 +27,14 @@ export function detectSource(url) {
   return /soundcloud\.com/i.test(url) ? 'soundcloud' : 'youtube'
 }
 
+// Extrait l'id de vidéo YouTube pour comparer deux URLs qui pointent vers le
+// même morceau (watch?v=, youtu.be/, shorts/, avec ou sans paramètres
+// supplémentaires comme &list=... ou &t=42s) — sert à la détection de doublons.
+export function extractYoutubeId(url) {
+  const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/)
+  return m ? m[1] : null
+}
+
 // Recherche multi-résultats (extraction "à plat" donc rapide), sur la
 // plateforme demandée.
 export async function searchMedia(query, source = 'youtube', limit = 12) {

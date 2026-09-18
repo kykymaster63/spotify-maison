@@ -30,16 +30,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 import TrackList from '../components/TrackList.vue'
 import { usePlayerStore } from '../stores/player.js'
 import { useJamStore } from '../stores/jam.js'
+import { useFavoritesStore } from '../stores/favorites.js'
 
 const tracks = ref([])
 const loading = ref(true)
 const player = usePlayerStore()
 const jam = useJamStore()
+const favorites = useFavoritesStore()
 
 async function load() {
   loading.value = true
@@ -53,6 +55,10 @@ function playAll() {
   player.play(tracks.value[0], tracks.value)
 }
 onMounted(load)
+// Le nombre de favoris est la seule source commune à toute l'app (voir
+// stores/favorites.js) : sans ça, liker un morceau depuis le lecteur (pas
+// depuis cette page) ne le faisait apparaître ici qu'après un rechargement.
+watch(() => favorites.ids.size, load)
 </script>
 
 <style scoped>

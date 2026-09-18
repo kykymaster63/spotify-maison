@@ -10,6 +10,7 @@ const routes = [
   { path: '/favorites', name: 'Favorites', component: () => import('../views/Favorites.vue') },
   { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue') },
   { path: '/friends', name: 'Friends', component: () => import('../views/Friends.vue') },
+  { path: '/history', name: 'History', component: () => import('../views/History.vue') },
   { path: '/playlist/:id', name: 'Playlist', component: () => import('../views/Playlist.vue') }
 ]
 

@@ -74,8 +74,12 @@
         <button class="ctrl-big" @click="guarded(player.next)" title="Suivant">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
         </button>
-        <button class="ctrl-small" style="visibility:hidden" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24"></svg>
+        <button class="ctrl-small" :class="{ active: player.repeatMode !== 'off' }" @click="guarded(player.cycleRepeat)" title="Répétition">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M7 7h10a2 2 0 012 2v3M17 17H7a2 2 0 01-2-2v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9.5 4.5L7 7l2.5 2.5M14.5 19.5L17 17l-2.5-2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span v-if="player.repeatMode === 'one'" class="repeat-one-badge">1</span>
         </button>
       </div>
 
@@ -231,11 +235,18 @@ const dragStyle = computed(() => dragY.value
   box-shadow: 0 8px 28px rgba(124,92,252,0.45);
 }
 .ctrl-small {
+  position: relative;
   display: flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
   background: none; border: none; color: var(--text-3); cursor: pointer; transition: color .15s;
 }
 .ctrl-small.active { color: var(--accent); }
+.repeat-one-badge {
+  position: absolute; top: 2px; right: 2px;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 800; line-height: 13px; text-align: center;
+}
 
 .volume-row { align-items: center; gap: 10px; margin-top: auto; }
 .volume-row.desktop-only { display: none; }

@@ -134,6 +134,34 @@ export async function friendsRoutes(fastify) {
       current_track_id: req.body.track_id,
       current_track_at: db.fn.now()
     })
+    // Même signal utilisé pour l'activité "amis" et pour l'historique perso —
+    // pas de nouvel appel réseau côté frontend nécessaire.
+    await db('listening_history').insert({ user_id: req.user.sub, track_id: req.body.track_id }).catch(() => {})
+    return { ok: true }
+  })
+
+  // GET /me/history — morceaux récemment écoutés, un seul exemplaire par
+  // morceau (comme "Récemment écoutés" sur Spotify), triés par dernière écoute
+  fastify.get('/me/history', { onRequest: [fastify.authenticate] }, async (req) => {
+    const { rows } = await db.raw(`
+      SELECT t.*, h.listened_at
+      FROM (
+        SELECT track_id, MAX(listened_at) AS listened_at
+        FROM listening_history
+        WHERE user_id = ?
+        GROUP BY track_id
+      ) h
+      JOIN tracks t ON t.id = h.track_id
+      WHERE t.status = 'ready'
+      ORDER BY h.listened_at DESC
+      LIMIT 100
+    `, [req.user.sub])
+    return rows
+  })
+
+  // DELETE /me/history — vider mon historique d'écoute
+  fastify.delete('/me/history', { onRequest: [fastify.authenticate] }, async (req) => {
+    await db('listening_history').where({ user_id: req.user.sub }).delete()
     return { ok: true }
   })
 }

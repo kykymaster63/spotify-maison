@@ -13,6 +13,7 @@ const OFFLINE_CACHE = 'hostify-offline-audio'
 const SKIP_SILENCE_KEY = 'spm_skip_silence'
 const CROSSFADE_ENABLED_KEY = 'spm_crossfade_enabled'
 const CROSSFADE_SECONDS_KEY = 'spm_crossfade_seconds'
+const REPEAT_MODE_KEY = 'spm_repeat_mode'
 
 export const EQ_BANDS = [60, 250, 1000, 4000, 12000]
 export const CROSSFADE_OPTIONS = [2, 3, 5, 8]
@@ -41,6 +42,8 @@ export const usePlayerStore = defineStore('player', () => {
   // Jam s'appuie là-dessus pour savoir quand rebroadcaster l'état à l'hôte,
   // sans avoir à connaître les détails de seek()/du <audio>.
   const seekVersion = ref(0)
+  // 'off' -> 'all' -> 'one' -> 'off'
+  const repeatMode = ref(['off', 'all', 'one'].includes(localStorage.getItem(REPEAT_MODE_KEY)) ? localStorage.getItem(REPEAT_MODE_KEY) : 'off')
   const skipSilence = ref(localStorage.getItem(SKIP_SILENCE_KEY) === '1')
   const crossfadeEnabled = ref(localStorage.getItem(CROSSFADE_ENABLED_KEY) === '1')
   const crossfadeSeconds = ref(parseFloat(localStorage.getItem(CROSSFADE_SECONDS_KEY) || '5'))
@@ -269,10 +272,10 @@ export const usePlayerStore = defineStore('player', () => {
       if (crossfadeEnabled.value && el.currentTime > 0 && timeLeft <= crossfadeSeconds.value && peekNextIndex() !== null) {
         startCrossfade()
       } else if (skipSilence.value && currentTrack.value.trim_end_ms && el.currentTime * 1000 >= currentTrack.value.trim_end_ms - 60) {
-        next()
+        handleTrackEnd()
       }
     })
-    el.addEventListener('ended', () => { if (audio.value === el && !crossfading) next() })
+    el.addEventListener('ended', () => { if (audio.value === el && !crossfading) handleTrackEnd() })
     el.addEventListener('error', () => {
       if (audio.value !== el) return
       if (!isOnline.value && currentTrack.value && !offlineIds.value.has(currentTrack.value.id)) {
@@ -355,12 +358,15 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   // Index du morceau qui suivrait un `next()`, sans rien déclencher — utilisé
-  // pour savoir si un fondu est possible.
+  // pour savoir si un fondu est possible. Boucle sur le début de la file si
+  // la répétition "tout" est active (comme le ferait next() lui-même).
   function peekNextIndex() {
     if (shuffle.value && shuffleOrder.length) {
-      return shufflePos < shuffleOrder.length - 1 ? shuffleOrder[shufflePos + 1] : null
+      if (shufflePos < shuffleOrder.length - 1) return shuffleOrder[shufflePos + 1]
+      return repeatMode.value === 'all' ? shuffleOrder[0] : null
     }
-    return queueIndex.value < queue.value.length - 1 ? queueIndex.value + 1 : null
+    if (queueIndex.value < queue.value.length - 1) return queueIndex.value + 1
+    return repeatMode.value === 'all' && queue.value.length ? 0 : null
   }
 
   // ─── Fondu entre morceaux ───────────────────────────────────────────────
@@ -419,7 +425,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (nextBlobUrl) { currentBlobUrl = nextBlobUrl; nextBlobUrl = null }
 
     queueIndex.value = nextIndex
-    if (shuffle.value && shuffleOrder.length) shufflePos++
+    if (shuffle.value && shuffleOrder.length) shufflePos = shuffleOrder.indexOf(nextIndex)
     currentTrack.value = nextTrack
     audio.value = incoming
     incoming.volume = volume.value
@@ -514,11 +520,18 @@ export const usePlayerStore = defineStore('player', () => {
         shufflePos++
         queueIndex.value = shuffleOrder[shufflePos]
         play(queue.value[queueIndex.value])
+      } else if (repeatMode.value === 'all') {
+        shufflePos = 0
+        queueIndex.value = shuffleOrder[shufflePos]
+        play(queue.value[queueIndex.value])
       }
       return
     }
     if (queueIndex.value < queue.value.length - 1) {
       queueIndex.value++
+      play(queue.value[queueIndex.value])
+    } else if (repeatMode.value === 'all' && queue.value.length) {
+      queueIndex.value = 0
       play(queue.value[queueIndex.value])
     }
   }
@@ -534,13 +547,39 @@ export const usePlayerStore = defineStore('player', () => {
         shufflePos--
         queueIndex.value = shuffleOrder[shufflePos]
         play(queue.value[queueIndex.value])
+      } else if (repeatMode.value === 'all') {
+        shufflePos = shuffleOrder.length - 1
+        queueIndex.value = shuffleOrder[shufflePos]
+        play(queue.value[queueIndex.value])
       }
       return
     }
     if (queueIndex.value > 0) {
       queueIndex.value--
       play(queue.value[queueIndex.value])
+    } else if (repeatMode.value === 'all' && queue.value.length) {
+      queueIndex.value = queue.value.length - 1
+      play(queue.value[queueIndex.value])
     }
+  }
+
+  // Appelé uniquement à la fin naturelle d'un morceau (pas sur un clic manuel
+  // "suivant") : en répétition "un seul", on rejoue le même au lieu d'avancer.
+  function handleTrackEnd() {
+    if (repeatMode.value === 'one' && currentTrack.value && audio.value) {
+      const startAt = skipSilence.value ? (currentTrack.value.trim_start_ms || 0) / 1000 : 0
+      audio.value.currentTime = startAt
+      progress.value = startAt
+      audio.value.play().catch(() => {})
+      return
+    }
+    next()
+  }
+
+  function cycleRepeat() {
+    const order = ['off', 'all', 'one']
+    repeatMode.value = order[(order.indexOf(repeatMode.value) + 1) % order.length]
+    localStorage.setItem(REPEAT_MODE_KEY, repeatMode.value)
   }
 
   function seek(time) {
@@ -595,10 +634,10 @@ export const usePlayerStore = defineStore('player', () => {
 
   return {
     currentTrack, queue, isPlaying, progress, duration, volume, progressPercent, isExpanded,
-    shuffle, eqGains, isOnline, offlineIds, seekVersion,
+    shuffle, eqGains, isOnline, offlineIds, seekVersion, repeatMode,
     skipSilence, crossfadeEnabled, crossfadeSeconds,
     play, pause, togglePlay, next, prev, seek, setVolume, formatTime, restoreLastTrack, expand, collapse,
-    toggleShuffle, setEqGain, resetEq, applyJamState,
+    toggleShuffle, cycleRepeat, setEqGain, resetEq, applyJamState,
     setSkipSilence, setCrossfadeEnabled, setCrossfadeSeconds,
     downloadForOffline, removeOffline, isOfflineAvailable, isDownloading
   }

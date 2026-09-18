@@ -42,6 +42,15 @@
       </label>
     </section>
 
+    <!-- Récemment écouté -->
+    <section v-if="history.length" class="section">
+      <div class="section-head">
+        <p class="section-title" style="margin:0">Récemment écouté</p>
+        <router-link to="/history" class="see-all">Tout voir</router-link>
+      </div>
+      <TrackList :tracks="history.slice(0, 5)" />
+    </section>
+
     <!-- Ajoutés récemment -->
     <section class="section">
       <div class="section-head">
@@ -64,6 +73,7 @@ const auth = useAuthStore()
 const toast = useToastStore()
 const tracks = ref([])
 const recentTracks = computed(() => tracks.value.slice(0, 5))
+const history = ref([])
 const dragging = ref(false)
 let pollTimer
 
@@ -78,6 +88,11 @@ function greet() {
 async function load() {
   const { data } = await axios.get('/api/tracks')
   tracks.value = data
+}
+
+async function loadHistory() {
+  const { data } = await axios.get('/api/me/history')
+  history.value = data
 }
 
 async function uploadFile(e) {
@@ -97,7 +112,8 @@ async function uploadFile(e) {
 // terminés entre-temps (ajoutés depuis l'onglet YouTube)
 onMounted(() => {
   load()
-  pollTimer = setInterval(load, 6000)
+  loadHistory()
+  pollTimer = setInterval(() => { load(); loadHistory() }, 6000)
 })
 onUnmounted(() => clearInterval(pollTimer))
 </script>

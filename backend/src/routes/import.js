@@ -1,4 +1,7 @@
 import { getMediaInfo, searchMedia, streamPreview } from '../services/importer.js'
+import { extractSpotifyPlaylistId, getPlaylistInfo } from '../services/spotify.js'
+import { downloadQueue } from '../services/queue.js'
+import { db } from '../db/knex.js'
 
 export async function importRoutes(fastify) {
 
@@ -70,5 +73,45 @@ export async function importRoutes(fastify) {
     child.on('error', () => { if (!reply.sent) reply.code(502).send({ error: 'Prévisualisation impossible' }) })
 
     return reply.send(child.stdout)
+  })
+
+  // POST /import/spotify-playlist — recrée une playlist Spotify publique dans
+  // Hostify : crée la playlist tout de suite, puis cherche/télécharge chaque
+  // piste sur YouTube en tâche de fond (peut prendre du temps sur une grosse
+  // playlist).
+  fastify.post('/import/spotify-playlist', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['url'],
+        properties: { url: { type: 'string' } }
+      }
+    }
+  }, async (req, reply) => {
+    const spotifyPlaylistId = extractSpotifyPlaylistId(req.body.url)
+    if (!spotifyPlaylistId) return reply.code(400).send({ error: 'Lien de playlist Spotify invalide' })
+
+    let info
+    try {
+      info = await getPlaylistInfo(spotifyPlaylistId)
+    } catch (err) {
+      return reply.code(400).send({ error: err.message })
+    }
+
+    const [playlist] = await db('playlists').insert({
+      name: info.name,
+      description: info.description || null,
+      is_public: false,
+      owner_id: req.user.sub
+    }).returning('*')
+
+    await downloadQueue.add('import-spotify-playlist', {
+      spotifyPlaylistId,
+      hostifyPlaylistId: playlist.id,
+      userId: req.user.sub
+    })
+
+    return reply.code(202).send({ ...playlist, message: 'Import en cours — les morceaux vont apparaître au fil du téléchargement.' })
   })
 }
