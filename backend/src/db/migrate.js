@@ -11,6 +11,14 @@ async function ensureTable(name, builder) {
   }
 }
 
+async function ensureColumn(table, column, builder) {
+  const exists = await db.schema.hasColumn(table, column)
+  if (!exists) {
+    await db.schema.alterTable(table, builder)
+    console.log(`  + colonne "${table}.${column}" ajoutée`)
+  }
+}
+
 async function migrate() {
   // ─── Users ────────────────────────────────────────────────────────
   await ensureTable('users', t => {
@@ -55,7 +63,11 @@ async function migrate() {
     t.uuid('track_id').references('id').inTable('tracks').onDelete('CASCADE')
     t.integer('position').defaultTo(0)
     t.timestamp('added_at').defaultTo(db.fn.now())
+    t.uuid('added_by').references('id').inTable('users').onDelete('SET NULL')
     t.primary(['playlist_id', 'track_id'])
+  })
+  await ensureColumn('playlist_tracks', 'added_by', t => {
+    t.uuid('added_by').references('id').inTable('users').onDelete('SET NULL')
   })
 
   // ─── Collaborateurs de playlist ───────────────────────────────────

@@ -47,9 +47,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .page-content {
   flex: 1; overflow-y: auto;
-  padding-bottom: calc(var(--player-height) + var(--nav-height) + env(safe-area-inset-bottom, 0px) + 8px);
+  padding-bottom: calc(var(--player-height) + var(--nav-height) + var(--safe-bottom) + 8px);
 }
-.page-content.with-topbar { padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px)); }
+.page-content.with-topbar { padding-top: calc(var(--topbar-height) + var(--safe-top)); }
 
 /* Transitions de page */
 .page-enter-active, .page-leave-active { transition: opacity .18s, transform .18s; }

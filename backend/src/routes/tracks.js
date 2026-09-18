@@ -1,5 +1,5 @@
 import { db } from '../db/knex.js'
-import { uploadFile, getSignedUrl, getStream, getStat, getPartialStream } from '../services/storage.js'
+import { uploadFile, getSignedUrl, getStream, getStat, getPartialStream, deleteFile } from '../services/storage.js'
 import { getMediaInfo, detectSource } from '../services/importer.js'
 import { downloadQueue } from '../services/queue.js'
 import { randomUUID } from 'crypto'
@@ -51,6 +51,21 @@ export async function tracksRoutes(fastify) {
       track.stream_url = await getSignedUrl(`audio/${track.storage_key}`)
     }
     return track
+  })
+
+  // DELETE /tracks/:id — supprimer un morceau (uploadeur uniquement)
+  fastify.delete('/tracks/:id', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+    const track = await db('tracks').where({ id: req.params.id }).first()
+    if (!track) return reply.code(404).send({ error: 'Track introuvable' })
+    if (track.uploaded_by !== req.user.sub) {
+      return reply.code(403).send({ error: "Tu ne peux supprimer que tes propres morceaux" })
+    }
+
+    if (track.storage_key) {
+      await deleteFile(`audio/${track.storage_key}`).catch(() => {})
+    }
+    await db('tracks').where({ id: track.id }).delete()
+    return { ok: true }
   })
 
   // GET /tracks/:id/stream — stream audio (accepte ?token= pour les balises <audio>)

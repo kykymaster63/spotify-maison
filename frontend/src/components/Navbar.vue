@@ -50,8 +50,8 @@
 .navbar {
   position: fixed; bottom: 0; left: 0; right: 0;
   /* La zone de la barre gestuelle (home indicator) empiète sinon sur les icônes */
-  height: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(var(--nav-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
   box-sizing: border-box;
   background: rgba(7, 7, 15, 0.92);
   backdrop-filter: blur(24px);

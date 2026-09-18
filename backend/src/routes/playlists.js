@@ -43,8 +43,12 @@ export async function playlistsRoutes(fastify) {
 
     const tracks = await db('playlist_tracks')
       .join('tracks', 'playlist_tracks.track_id', 'tracks.id')
+      .leftJoin('users as adders', 'playlist_tracks.added_by', 'adders.id')
       .where('playlist_tracks.playlist_id', req.params.id)
-      .select('tracks.*', 'playlist_tracks.position', 'playlist_tracks.added_at')
+      .select(
+        'tracks.*', 'playlist_tracks.position', 'playlist_tracks.added_at',
+        'adders.username as added_by_username'
+      )
       .orderBy('playlist_tracks.position')
 
     return { ...playlist, tracks }
@@ -67,7 +71,14 @@ export async function playlistsRoutes(fastify) {
     const max = await db('playlist_tracks').where({ playlist_id }).max('position as m').first()
     const position = (max.m || 0) + 1
 
-    await db('playlist_tracks').insert({ playlist_id, track_id, position })
+    const inserted = await db('playlist_tracks')
+      .insert({ playlist_id, track_id, position, added_by: req.user.sub })
+      .onConflict(['playlist_id', 'track_id']).ignore()
+      .returning('track_id')
+
+    if (!inserted.length) {
+      return reply.code(409).send({ error: 'Ce morceau est déjà dans cette playlist' })
+    }
     return reply.code(201).send({ ok: true, position })
   })
 

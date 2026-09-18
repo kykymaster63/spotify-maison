@@ -29,7 +29,10 @@
       <!-- Méta -->
       <div class="track-meta">
         <span class="track-name">{{ track.title }}</span>
-        <span class="track-sub">{{ track.artist || track.uploader || 'Artiste inconnu' }}</span>
+        <span class="track-sub">
+          {{ track.artist || 'Artiste inconnu' }}
+          <template v-if="addedInfo(track)"> · <span class="added-by">{{ addedInfo(track) }}</span></template>
+        </span>
       </div>
 
       <!-- Badge statut si pas ready -->
@@ -44,9 +47,32 @@
         </svg>
       </button>
 
+      <!-- Ajouter à une playlist -->
+      <button
+        class="add-pl-btn" :class="{ invisible: track.status !== 'ready' }"
+        @click.stop="openAddModal(track)" title="Ajouter à une playlist"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M15 6H3M15 12H3M15 18H3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M19 8v8M15 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+
       <!-- Durée -->
       <div class="track-duration">{{ fmt(track.duration_seconds) }}</div>
+
+      <!-- Supprimer (uploadeur uniquement) -->
+      <button
+        class="delete-btn" :class="{ invisible: track.uploaded_by !== auth.user?.id }"
+        @click.stop="removeTrack(track)" title="Supprimer"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0-.8 12.1a2 2 0 01-2 1.9H8.8a2 2 0 01-2-1.9L6 7h12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
+
+    <AddToPlaylistModal :track="modalTrack" @close="modalTrack = null" />
 
     <div v-if="!tracks.length" class="empty-state">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" opacity=".3">
@@ -60,10 +86,21 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import axios from 'axios'
 import { usePlayerStore } from '../stores/player.js'
+import { useAuthStore } from '../stores/auth.js'
+import { useToastStore } from '../stores/toast.js'
+import AddToPlaylistModal from './AddToPlaylistModal.vue'
 const props = defineProps({ tracks: { type: Array, default: () => [] } })
 const player = usePlayerStore()
+const auth = useAuthStore()
+const toast = useToastStore()
+const modalTrack = ref(null)
+
+function openAddModal(track) {
+  modalTrack.value = track
+}
 
 function playTrack(track) {
   if (track.status !== 'ready') return
@@ -72,6 +109,11 @@ function playTrack(track) {
 function fmt(s) {
   if (!s) return '--:--'
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+}
+function addedInfo(track) {
+  if (track.added_by_username) return `ajouté par ${track.added_by_username}`
+  if (track.uploader) return `importé par ${track.uploader}`
+  return null
 }
 async function toggleFav(track) {
   const next = !track.is_favorite
@@ -83,13 +125,26 @@ async function toggleFav(track) {
     track.is_favorite = !next
   }
 }
+
+async function removeTrack(track) {
+  if (!confirm(`Supprimer "${track.title}" définitivement ?`)) return
+  try {
+    await axios.delete(`/api/tracks/${track.id}`)
+    const i = props.tracks.findIndex(t => t.id === track.id)
+    if (i !== -1) props.tracks.splice(i, 1)
+    if (player.currentTrack?.id === track.id) player.pause()
+    toast.success(`"${track.title}" supprimé`)
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Suppression impossible')
+  }
+}
 </script>
 
 <style scoped>
 .track-list { display: flex; flex-direction: column; }
 .track-row {
   display: grid;
-  grid-template-columns: 32px 40px 1fr auto auto;
+  grid-template-columns: 32px 40px 1fr auto auto auto auto;
   align-items: center; gap: 12px;
   padding: 8px 10px; border-radius: var(--r-sm);
   cursor: pointer; transition: background .15s;
@@ -128,10 +183,31 @@ async function toggleFav(track) {
 /* Méta */
 .track-meta { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .track-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.track-sub { font-size: 11px; color: var(--text-2); }
+.track-sub { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.added-by { color: var(--text-3); }
 
 /* Durée */
 .track-duration { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* Ajouter à une playlist */
+.add-pl-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-3); flex-shrink: 0; transition: color .15s, background .15s;
+}
+.add-pl-btn:hover { color: var(--accent); background: var(--glass-hover); }
+.add-pl-btn.invisible { visibility: hidden; pointer-events: none; }
+
+/* Supprimer */
+.delete-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-3); flex-shrink: 0; transition: color .15s, background .15s;
+}
+.delete-btn:hover { color: #f87171; background: rgba(248,113,113,0.1); }
+.delete-btn.invisible { visibility: hidden; pointer-events: none; }
 
 /* Badge */
 .status-badge {

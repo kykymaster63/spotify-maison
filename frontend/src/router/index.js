@@ -8,6 +8,7 @@ const routes = [
   { path: '/search', name: 'Search', component: () => import('../views/Search.vue') },
   { path: '/import', name: 'Import', component: () => import('../views/Import.vue') },
   { path: '/favorites', name: 'Favorites', component: () => import('../views/Favorites.vue') },
+  { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue') },
   { path: '/playlist/:id', name: 'Playlist', component: () => import('../views/Playlist.vue') }
 ]
 

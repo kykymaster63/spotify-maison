@@ -126,7 +126,7 @@ async function toggleFav() {
 <style scoped>
 .player {
   position: fixed;
-  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--nav-height) + var(--safe-bottom));
   left: 0; right: 0;
   height: var(--player-height);
   background: rgba(7, 7, 15, 0.85);

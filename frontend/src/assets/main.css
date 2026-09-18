@@ -39,6 +39,13 @@
   --player-height: 88px;
   --nav-height:    64px;
   --topbar-height: 56px;
+
+  /* Zones sûres iOS (encoche / Dynamic Island en haut, home indicator en bas) :
+     on résout env() une seule fois ici, puis on référence ces variables
+     partout ailleurs — WebKit a des soucis connus avec env() répété dans
+     plusieurs calc() sur le même élément. */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html, body {

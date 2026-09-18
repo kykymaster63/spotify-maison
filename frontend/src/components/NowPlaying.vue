@@ -55,6 +55,12 @@
       </div>
 
       <div class="controls-big">
+        <button class="ctrl-small" :class="{ active: player.shuffle }" @click="player.toggleShuffle()" title="Aléatoire">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M3 6h3.5c1.5 0 2.3.8 3.2 2l1.6 2M3 18h3.5c1.5 0 2.3-.8 3.2-2l.6-.8M14 6h3c1 0 1.6.4 2.2 1.1M14 18h3c1 0 1.6-.4 2.2-1.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.5 4l2.5 2.5-2.5 2.5M18.5 15.5l2.5 2.5-2.5 2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button class="ctrl-big" @click="player.prev()" title="Précédent">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
         </button>
@@ -64,6 +70,9 @@
         </button>
         <button class="ctrl-big" @click="player.next()" title="Suivant">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
+        </button>
+        <button class="ctrl-small" style="visibility:hidden" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24"></svg>
         </button>
       </div>
 
@@ -152,14 +161,14 @@ const dragStyle = computed(() => dragY.value
 .handle-zone {
   position: relative; z-index: 2;
   /* Décale sous la Dynamic Island / l'encoche : sinon la pochette démarre trop haut */
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 4px;
+  padding: calc(var(--safe-top) + 10px) 0 4px;
   display: flex; justify-content: center; cursor: grab;
   touch-action: none;
 }
 .handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.25); }
 
 .close-btn {
-  position: absolute; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 16px; z-index: 3;
+  position: absolute; top: calc(var(--safe-top) + 10px); right: 16px; z-index: 3;
   width: 34px; height: 34px; border-radius: 50%;
   background: rgba(255,255,255,0.08); border: none; color: var(--text);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -168,7 +177,7 @@ const dragStyle = computed(() => dragY.value
 .content {
   position: relative; z-index: 1;
   flex: 1; display: flex; flex-direction: column;
-  padding: 28px 28px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  padding: 28px 28px calc(var(--safe-bottom) + 28px);
   max-width: 480px; width: 100%; margin: 0 auto;
   overflow-y: auto;
 }
@@ -209,6 +218,12 @@ const dragStyle = computed(() => dragY.value
   width: 68px; height: 68px; background: var(--gradient);
   box-shadow: 0 8px 28px rgba(124,92,252,0.45);
 }
+.ctrl-small {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: none; border: none; color: var(--text-3); cursor: pointer; transition: color .15s;
+}
+.ctrl-small.active { color: var(--accent); }
 
 .volume-row { align-items: center; gap: 10px; margin-top: auto; }
 .volume-row.desktop-only { display: none; }

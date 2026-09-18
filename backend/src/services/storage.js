@@ -48,3 +48,7 @@ export async function getPartialStream(key, start, length) {
 export async function getStat(key) {
   return minioClient.statObject(config.minio.bucket, key)
 }
+
+export async function deleteFile(key) {
+  return minioClient.removeObject(config.minio.bucket, key)
+}

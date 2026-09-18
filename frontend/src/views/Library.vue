@@ -71,14 +71,25 @@
         </router-link>
       </div>
     </section>
+
+    <!-- Tous les morceaux -->
+    <section class="section">
+      <div class="section-head">
+        <p class="section-title" style="margin:0">Tous les morceaux</p>
+        <span class="count">{{ tracks.length }}</span>
+      </div>
+      <TrackList :tracks="tracks" />
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import TrackList from '../components/TrackList.vue'
 
 const playlists = ref({ owned: [], shared: [] })
+const tracks = ref([])
 const showCreate = ref(false)
 const np = ref({ name: '', description: '', is_public: false })
 
@@ -86,13 +97,17 @@ async function load() {
   const { data } = await axios.get('/api/playlists')
   playlists.value = data
 }
+async function loadTracks() {
+  const { data } = await axios.get('/api/tracks')
+  tracks.value = data
+}
 async function create() {
   await axios.post('/api/playlists', np.value)
   showCreate.value = false
   np.value = { name: '', description: '', is_public: false }
   load()
 }
-onMounted(load)
+onMounted(() => { load(); loadTracks() })
 </script>
 
 <style scoped>
@@ -101,6 +116,8 @@ onMounted(load)
 h1 { font-size: 24px; font-weight: 800; }
 .create-btn { padding: 9px 16px; font-size: 13px; }
 .section { margin-bottom: 36px; }
+.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.count { font-size: 11px; color: var(--text-3); background: var(--glass); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
 
 /* Grille playlists */
 .playlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }

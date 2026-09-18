@@ -42,19 +42,19 @@
       </label>
     </section>
 
-    <!-- Tous les morceaux -->
+    <!-- Ajoutés récemment -->
     <section class="section">
       <div class="section-head">
-        <p class="section-title" style="margin:0">Tous les morceaux</p>
-        <span class="count">{{ tracks.length }}</span>
+        <p class="section-title" style="margin:0">Ajoutés récemment</p>
+        <router-link to="/library" class="see-all">Tout voir</router-link>
       </div>
-      <TrackList :tracks="tracks" />
+      <TrackList :tracks="recentTracks" />
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth.js'
 import { useToastStore } from '../stores/toast.js'
@@ -63,6 +63,7 @@ import TrackList from '../components/TrackList.vue'
 const auth = useAuthStore()
 const toast = useToastStore()
 const tracks = ref([])
+const recentTracks = computed(() => tracks.value.slice(0, 5))
 const dragging = ref(false)
 let pollTimer
 
@@ -109,8 +110,9 @@ onUnmounted(() => clearInterval(pollTimer))
 h1 { font-size: 28px; font-weight: 800; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
 .section { margin-bottom: 36px; }
-.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.count { font-size: 11px; color: var(--text-3); background: var(--glass); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.see-all { font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.see-all:hover { opacity: .8; }
 
 /* Bandeau promo YouTube */
 .yt-promo {

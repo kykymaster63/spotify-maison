@@ -57,4 +57,52 @@ export async function authRoutes(fastify) {
     const user = await db('users').where({ id: req.user.sub }).select('id', 'username', 'email', 'avatar_url', 'created_at').first()
     return user
   })
+
+  // PATCH /auth/me — modifier le profil (nom, email, mot de passe)
+  fastify.patch('/auth/me', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          username: { type: 'string', minLength: 3, maxLength: 50 },
+          email: { type: 'string', format: 'email' },
+          currentPassword: { type: 'string' },
+          newPassword: { type: 'string', minLength: 8 }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const { username, email, currentPassword, newPassword } = req.body
+    const user = await db('users').where({ id: req.user.sub }).first()
+
+    const updates = {}
+
+    if (username && username !== user.username) {
+      const taken = await db('users').where({ username }).whereNot({ id: user.id }).first()
+      if (taken) return reply.code(409).send({ error: "Ce nom d'utilisateur est déjà pris" })
+      updates.username = username
+    }
+
+    if (email && email !== user.email) {
+      const taken = await db('users').where({ email }).whereNot({ id: user.id }).first()
+      if (taken) return reply.code(409).send({ error: 'Cet email est déjà utilisé' })
+      updates.email = email
+    }
+
+    if (newPassword) {
+      if (!currentPassword || !(await bcrypt.compare(currentPassword, user.password_hash))) {
+        return reply.code(401).send({ error: 'Mot de passe actuel incorrect' })
+      }
+      updates.password_hash = await bcrypt.hash(newPassword, 10)
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return { id: user.id, username: user.username, email: user.email, avatar_url: user.avatar_url }
+    }
+
+    const [updated] = await db('users').where({ id: user.id }).update(updates)
+      .returning(['id', 'username', 'email', 'avatar_url'])
+    return updated
+  })
 }
