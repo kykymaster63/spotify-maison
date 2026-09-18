@@ -60,19 +60,19 @@
       <p class="eq-hint">S'applique en direct, y compris au morceau en cours.</p>
     </section>
 
-    <!-- Diagnostic (temporaire, pour déboguer l'affichage sur iPhone) -->
-    <section class="section glass-card diag">
-      <p class="section-title">Diagnostic affichage</p>
-      <div class="diag-row"><span>Mode plein écran (standalone)</span><strong :class="diag.standalone ? 'ok' : 'bad'">{{ diag.standalone ? 'Oui' : 'Non' }}</strong></div>
-      <div class="diag-row"><span>Zone sûre en haut</span><strong>{{ diag.safeTop }}</strong></div>
-      <div class="diag-row"><span>Zone sûre en bas</span><strong>{{ diag.safeBottom }}</strong></div>
-      <div class="diag-row"><span>window.innerHeight</span><strong>{{ diag.innerHeight }}</strong></div>
-      <div class="diag-row"><span>visualViewport.height</span><strong>{{ diag.visualViewport }}</strong></div>
-      <div class="diag-row"><span>screen.height</span><strong>{{ diag.screenHeight }}</strong></div>
-      <div class="diag-row"><span>100dvh (rendu réel CSS)</span><strong>{{ diag.dvhRendered }}</strong></div>
-      <div class="diag-row"><span>100vh (rendu réel CSS)</span><strong>{{ diag.vhRendered }}</strong></div>
-      <div class="diag-row wrap"><span>Écart bas navbar / fenêtre</span><strong>{{ diag.navBottomGap }}</strong></div>
-      <p class="eq-hint">Envoie une capture de ce bloc si le souci de barre persiste — ça permet de trancher sans deviner.</p>
+    <!-- Thème -->
+    <section class="section glass-card">
+      <p class="section-title">Thème</p>
+      <div class="theme-grid">
+        <button
+          v-for="t in theme.themes" :key="t.id"
+          class="theme-swatch" :class="{ active: theme.current === t.id }"
+          @click="theme.apply(t.id)"
+        >
+          <span class="swatch-dot" :style="{ background: t.swatch }"></span>
+          {{ t.name }}
+        </button>
+      </div>
     </section>
   </div>
 </template>
@@ -83,10 +83,12 @@ import axios from 'axios'
 import { usePlayerStore, EQ_BANDS } from '../stores/player.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useToastStore } from '../stores/toast.js'
+import { useThemeStore } from '../stores/theme.js'
 
 const player = usePlayerStore()
 const auth = useAuthStore()
 const toast = useToastStore()
+const theme = useThemeStore()
 
 const profile = reactive({ username: '', email: '', currentPassword: '', newPassword: '' })
 const showPwd = ref(false)
@@ -95,63 +97,6 @@ const profileMsg = ref(null)
 
 function fmtFreq(f) {
   return f >= 1000 ? `${f / 1000}kHz` : `${f}Hz`
-}
-
-const diag = reactive({
-  standalone: false, safeTop: '?', safeBottom: '?', innerHeight: '?', visualViewport: '?', screenHeight: '?',
-  dvhRendered: '?', vhRendered: '?', navBottomGap: '?'
-})
-function readDiagnostics() {
-  diag.standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
-
-  // Les variables CSS ne résolvent pas env()/calc() quand on les lit
-  // directement : on mesure via un élément-sonde dont le padding, lui,
-  // est bien calculé en pixels réels par le navigateur.
-  const probe = document.createElement('div')
-  probe.style.position = 'fixed'
-  probe.style.top = '0'
-  probe.style.paddingTop = 'env(safe-area-inset-top, 0px)'
-  probe.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)'
-  probe.style.visibility = 'hidden'
-  probe.style.pointerEvents = 'none'
-  document.body.appendChild(probe)
-  const style = getComputedStyle(probe)
-  diag.safeTop = style.paddingTop
-  diag.safeBottom = style.paddingBottom
-  document.body.removeChild(probe)
-
-  diag.innerHeight = `${window.innerHeight}px`
-  diag.visualViewport = window.visualViewport ? `${Math.round(window.visualViewport.height)}px` : 'non supporté'
-  diag.screenHeight = `${window.screen.height}px`
-
-  // window.innerHeight n'est pas garanti d'être ce que 100dvh/100vh calcule
-  // réellement en CSS sur WebKit -> on mesure directement le rendu.
-  const dvhProbe = document.createElement('div')
-  dvhProbe.style.position = 'fixed'
-  dvhProbe.style.top = '0'
-  dvhProbe.style.height = '100dvh'
-  dvhProbe.style.visibility = 'hidden'
-  document.body.appendChild(dvhProbe)
-  diag.dvhRendered = `${Math.round(dvhProbe.getBoundingClientRect().height)}px`
-  document.body.removeChild(dvhProbe)
-
-  const vhProbe = document.createElement('div')
-  vhProbe.style.position = 'fixed'
-  vhProbe.style.top = '0'
-  vhProbe.style.height = '100vh'
-  vhProbe.style.visibility = 'hidden'
-  document.body.appendChild(vhProbe)
-  diag.vhRendered = `${Math.round(vhProbe.getBoundingClientRect().height)}px`
-  document.body.removeChild(vhProbe)
-
-  // Où le bas de la navbar réelle tombe-t-il par rapport au bas de l'écran ?
-  const nav = document.querySelector('.navbar')
-  if (nav) {
-    const rect = nav.getBoundingClientRect()
-    diag.navBottomGap = `${Math.round(window.innerHeight - rect.bottom)}px (bas de la navbar à ${Math.round(rect.bottom)}px, fenêtre à ${window.innerHeight}px)`
-  } else {
-    diag.navBottomGap = 'navbar introuvable (recharge la page sur Accueil/Bibliothèque puis reviens ici)'
-  }
 }
 
 async function loadProfile() {
@@ -184,7 +129,7 @@ async function saveProfile() {
   }
 }
 
-onMounted(() => { loadProfile(); readDiagnostics() })
+onMounted(loadProfile)
 </script>
 
 <style scoped>
@@ -229,12 +174,16 @@ label { font-size: 12px; font-weight: 600; color: var(--text-2); }
 }
 .eq-hint { font-size: 11px; color: var(--text-3); }
 
-/* Diagnostic */
-.diag-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
-.diag-row span { color: var(--text-2); flex-shrink: 0; }
-.diag-row strong { font-variant-numeric: tabular-nums; text-align: right; }
-.diag-row strong.ok { color: var(--accent-2); }
-.diag-row strong.bad { color: #f87171; }
-.diag-row.wrap { flex-direction: column; align-items: flex-start; gap: 2px; }
-.diag-row.wrap strong { text-align: left; font-size: 12px; color: var(--text-2); font-weight: 500; }
+/* Thème */
+.theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.theme-swatch {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: var(--r-sm);
+  background: var(--glass); border: 1px solid var(--border);
+  color: var(--text-2); font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: border-color .15s, color .15s;
+}
+.theme-swatch:hover { color: var(--text); }
+.theme-swatch.active { border-color: var(--accent); color: var(--text); }
+.swatch-dot { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; }
 </style>

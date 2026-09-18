@@ -13,6 +13,14 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <title>Hostify</title>
+  <script>
+    // Applique le thème sauvegardé avant même le montage de Vue, pour éviter
+    // un flash du thème violet par défaut au chargement.
+    try {
+      var t = localStorage.getItem('spm_theme')
+      if (t && t !== 'violet') document.documentElement.setAttribute('data-theme', t)
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <div id="app"></div>

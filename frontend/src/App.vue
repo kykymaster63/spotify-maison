@@ -19,6 +19,7 @@ import { usePlayerStore } from './stores/player.js'
 import { useToastStore } from './stores/toast.js'
 import { useFavoritesStore } from './stores/favorites.js'
 import { useJamStore } from './stores/jam.js'
+import { useThemeStore } from './stores/theme.js'
 import Player from './components/Player.vue'
 import Navbar from './components/Navbar.vue'
 import TopBar from './components/TopBar.vue'
@@ -29,6 +30,7 @@ const player = usePlayerStore()
 const toast = useToastStore()
 const favorites = useFavoritesStore()
 const jam = useJamStore()
+useThemeStore() // applique le thème sauvegardé dès le montage de l'app
 
 function onOffline() { toast.error('Hors ligne — seuls les morceaux téléchargés sont disponibles') }
 function onOnline() { toast.success('Connexion rétablie') }

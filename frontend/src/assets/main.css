@@ -48,6 +48,38 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* ─── Thèmes (voir stores/theme.js) ──────────────────────────────────
+   Seuls le fond et l'accent changent ; le reste du design (verre, textes,
+   rayons...) est partagé par tous les thèmes. */
+:root[data-theme="ocean"] {
+  --bg: #05080f; --bg-2: #0a0f1a; --bg-3: #0f1526;
+  --accent: #22b8d6; --accent-2: #3b82f6;
+  --gradient: linear-gradient(135deg, #22b8d6 0%, #3b82f6 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(34,184,214,0.15) 0%, rgba(59,130,246,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #38bdf8 0%, #2563eb 55%, #4338ca 100%);
+}
+:root[data-theme="sunset"] {
+  --bg: #0f0707; --bg-2: #1a0d0d; --bg-3: #261212;
+  --accent: #f97316; --accent-2: #ec4899;
+  --gradient: linear-gradient(135deg, #f97316 0%, #ec4899 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(236,72,153,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #fb923c 0%, #f97316 55%, #db2777 100%);
+}
+:root[data-theme="emerald"] {
+  --bg: #05100b; --bg-2: #0a1a12; --bg-3: #0f261b;
+  --accent: #10b981; --accent-2: #22c55e;
+  --gradient: linear-gradient(135deg, #10b981 0%, #22c55e 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(34,197,94,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #34d399 0%, #10b981 55%, #059669 100%);
+}
+:root[data-theme="ruby"] {
+  --bg: #100507; --bg-2: #1a0a0d; --bg-3: #261016;
+  --accent: #ef4444; --accent-2: #f43f5e;
+  --gradient: linear-gradient(135deg, #ef4444 0%, #f43f5e 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(244,63,94,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #fb7185 0%, #ef4444 55%, #be123c 100%);
+}
+
 html, body {
   height: 100%;
   height: 100dvh; /* défensif : au cas où 100% résolve différemment de 100dvh sur WebKit */
