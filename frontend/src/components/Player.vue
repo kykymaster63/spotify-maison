@@ -56,7 +56,7 @@
       <div class="player-right">
         <button
           v-if="player.currentTrack"
-          class="fav-btn" :class="{ active: favorites.isFavorite(player.currentTrack.id) }"
+          class="fav-btn" :class="{ active: favorites.isFavorite(player.currentTrack.id), pop: popping }"
           @click="toggleFav" title="Ajouter aux favoris"
         >
           <svg width="17" height="17" viewBox="-1 -1 26 26" :fill="favorites.isFavorite(player.currentTrack.id) ? 'currentColor' : 'none'">
@@ -85,6 +85,7 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { usePlayerStore } from '../stores/player.js'
 import { useFavoritesStore } from '../stores/favorites.js'
 import { useJamStore } from '../stores/jam.js'
@@ -93,6 +94,7 @@ import NowPlaying from './NowPlaying.vue'
 const player = usePlayerStore()
 const favorites = useFavoritesStore()
 const jam = useJamStore()
+const popping = ref(false)
 let dragging = false
 
 // Pendant un Jam suivi (pas hôte), les contrôles de transport sont bloqués :
@@ -121,7 +123,13 @@ function onSeekEnd() {
 }
 
 function toggleFav() {
-  if (player.currentTrack) favorites.toggle(player.currentTrack)
+  if (!player.currentTrack) return
+  const wasFav = favorites.isFavorite(player.currentTrack.id)
+  favorites.toggle(player.currentTrack)
+  if (!wasFav) {
+    popping.value = true
+    setTimeout(() => { popping.value = false }, 420)
+  }
 }
 </script>
 

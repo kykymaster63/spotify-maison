@@ -3,6 +3,7 @@
     <div v-for="(track, i) in tracks" :key="track.id"
       class="track-row"
       :class="{ active: player.currentTrack?.id === track.id, disabled: track.status !== 'ready' }"
+      :style="{ animationDelay: Math.min(i * 25, 300) + 'ms' }"
       @click="playTrack(track)"
     >
       <!-- Numéro / lecture en cours -->
@@ -41,7 +42,7 @@
       </div>
 
       <!-- Favori -->
-      <button v-else class="fav-btn" :class="{ active: favorites.isFavorite(track.id) }" @click.stop="toggleFav(track)" title="Favori">
+      <button v-else class="fav-btn" :class="{ active: favorites.isFavorite(track.id), pop: poppingId === track.id }" @click.stop="toggleFav(track)" title="Favori">
         <svg width="15" height="15" viewBox="-1 -1 26 26" :fill="favorites.isFavorite(track.id) ? 'currentColor' : 'none'">
           <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
         </svg>
@@ -133,6 +134,7 @@ const favorites = useFavoritesStore()
 const jam = useJamStore()
 const modalTrack = ref(null)
 const openMenuId = ref(null)
+const poppingId = ref(null)
 
 function toggleMenu(track) {
   openMenuId.value = openMenuId.value === track.id ? null : track.id
@@ -167,7 +169,13 @@ function addedInfo(track) {
   return null
 }
 function toggleFav(track) {
+  const wasFav = favorites.isFavorite(track.id)
   favorites.toggle(track)
+  if (!wasFav) {
+    // "Pop" seulement quand on like, pas quand on retire.
+    poppingId.value = track.id
+    setTimeout(() => { if (poppingId.value === track.id) poppingId.value = null }, 420)
+  }
 }
 
 async function downloadOffline(track) {
@@ -213,6 +221,7 @@ async function removeTrack(track) {
   align-items: center; gap: 12px;
   padding: 8px 10px; border-radius: var(--r-sm);
   cursor: pointer; transition: background .15s;
+  animation: row-in .32s ease backwards;
 }
 .track-row:hover { background: var(--glass-hover); }
 .track-row.active .track-name { color: var(--accent); }

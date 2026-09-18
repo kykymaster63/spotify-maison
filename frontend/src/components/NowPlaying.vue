@@ -17,7 +17,10 @@
     </button>
 
     <div class="content">
-      <div class="cover-big">
+      <div
+        class="cover-big"
+        @pointerdown="onDragStart" @pointermove="onDragMove" @pointerup="onDragEnd" @pointercancel="onDragEnd"
+      >
         <img v-if="player.currentTrack?.cover_url" :src="player.currentTrack.cover_url" alt="" />
         <div v-else class="cover-empty">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
@@ -33,7 +36,7 @@
           <span class="title">{{ player.currentTrack?.title }}</span>
           <span class="artist">{{ player.currentTrack?.artist || 'Artiste inconnu' }}</span>
         </div>
-        <button class="fav-btn big" :class="{ active: player.currentTrack && favorites.isFavorite(player.currentTrack.id) }" @click="toggleFav">
+        <button class="fav-btn big" :class="{ active: player.currentTrack && favorites.isFavorite(player.currentTrack.id), pop: popping }" @click="toggleFav">
           <svg width="22" height="22" viewBox="-1 -1 26 26" :fill="player.currentTrack && favorites.isFavorite(player.currentTrack.id) ? 'currentColor' : 'none'">
             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
           </svg>
@@ -96,6 +99,7 @@ import { useJamStore } from '../stores/jam.js'
 const player = usePlayerStore()
 const favorites = useFavoritesStore()
 const jam = useJamStore()
+const popping = ref(false)
 
 function guarded(fn) {
   if (jam.guardControl()) fn()
@@ -113,7 +117,13 @@ function onSeekMove(e) { if (seeking) seekFromEvent(e) }
 function onSeekEnd() { seeking = false }
 
 function toggleFav() {
-  if (player.currentTrack) favorites.toggle(player.currentTrack)
+  if (!player.currentTrack) return
+  const wasFav = favorites.isFavorite(player.currentTrack.id)
+  favorites.toggle(player.currentTrack)
+  if (!wasFav) {
+    popping.value = true
+    setTimeout(() => { popping.value = false }, 420)
+  }
 }
 
 // Glisser vers le bas pour fermer (comme les bottom-sheets natifs)
@@ -187,8 +197,10 @@ const dragStyle = computed(() => dragY.value
   border-radius: var(--r-xl); overflow: hidden; flex-shrink: 0;
   background: var(--bg-3); box-shadow: 0 24px 60px rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
+  /* Glisser vers le bas depuis la pochette ferme aussi le plein écran */
+  touch-action: none; cursor: grab;
 }
-.cover-big img { width: 100%; height: 100%; object-fit: cover; }
+.cover-big img { width: 100%; height: 100%; object-fit: cover; -webkit-user-drag: none; user-select: none; }
 .cover-empty { color: var(--text-3); }
 
 .meta-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; }

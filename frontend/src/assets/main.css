@@ -136,8 +136,14 @@ button, a {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  transition: transform .15s;
 }
 button:focus { outline: none; }
+
+/* Retour tactile générique : tout bouton/lien "s'enfonce" légèrement au
+   tap, sauf ceux qui définissent déjà leur propre :active (plus spécifique,
+   donc prioritaire — ex. .btn-primary, .ctrl-big). */
+button:active, a:active { transform: scale(0.94); }
 
 /* Scrollbar fine */
 ::-webkit-scrollbar { width: 4px; }
@@ -211,8 +217,8 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 }
 
 /* ─── Transition du lecteur plein écran ──────────────────────────── */
-.sheet-enter-active, .sheet-leave-active { transition: transform .28s cubic-bezier(.32,.72,0,1); }
-.sheet-enter-from, .sheet-leave-to { transform: translateY(100%); }
+.sheet-enter-active, .sheet-leave-active { transition: transform .32s cubic-bezier(.32,.72,0,1), opacity .32s ease; }
+.sheet-enter-from, .sheet-leave-to { transform: translateY(100%); opacity: .5; }
 
 /* ─── Bouton favori (coeur) partagé ──────────────────────────────── */
 .fav-btn {
@@ -224,3 +230,19 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .fav-btn:hover { color: #ff5d8f; transform: scale(1.1); }
 .fav-btn.active { color: #ff5d8f; }
 .fav-btn svg { pointer-events: none; }
+
+/* "Pop" bref au moment où on like (pas au unlike) — le bouton garde son
+   propre :active/:hover, seule l'icône à l'intérieur rebondit. */
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.4); }
+  60% { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+.fav-btn.pop svg { animation: heart-pop .42s cubic-bezier(.34,1.56,.64,1); }
+
+/* ─── Apparition en cascade des listes de morceaux ──────────────────── */
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
