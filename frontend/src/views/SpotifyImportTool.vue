@@ -2,7 +2,7 @@
   <div class="tool-page">
     <header class="page-header">
       <h1>Import Spotify — aperçu</h1>
-      <p class="page-sub">Colle un lien de playlist Spotify publique pour voir ce qui sera trouvé sur YouTube avant de vraiment l'importer.</p>
+      <p class="page-sub">Colle un lien de playlist Spotify publique pour voir ce qui sera trouvé sur YouTube avant de vraiment l'importer. Limité aux 50 premiers morceaux de la playlist.</p>
     </header>
 
     <div class="search-bar glass-card">

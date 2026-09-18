@@ -1,29 +1,15 @@
-import { config } from '../config.js'
-
-// Client Credentials flow : suffisant pour lire des playlists publiques,
-// pas besoin qu'un utilisateur se connecte avec son compte Spotify.
-let cachedToken = null
-let tokenExpiresAt = 0
-
-async function getAccessToken() {
-  if (!config.spotify.clientId || !config.spotify.clientSecret) {
-    throw new Error('Import Spotify non configuré (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET manquants)')
-  }
-  if (cachedToken && Date.now() < tokenExpiresAt - 5000) return cachedToken
-
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: 'Basic ' + Buffer.from(`${config.spotify.clientId}:${config.spotify.clientSecret}`).toString('base64')
-    },
-    body: 'grant_type=client_credentials'
-  })
-  if (!res.ok) throw new Error('Authentification Spotify refusée — vérifie les identifiants')
-  const data = await res.json()
-  cachedToken = data.access_token
-  tokenExpiresAt = Date.now() + data.expires_in * 1000
-  return cachedToken
+// Spotify exige désormais un compte Premium pour créer une appli développeur
+// et obtenir des clés d'API — inutilisable pour un simple import perso entre
+// amis. À la place, on lit directement la page d'embed publique d'une
+// playlist (open.spotify.com/embed/playlist/...) : elle contient déjà toutes
+// les données nécessaires (titre, morceaux, artistes, durées) dans un bloc
+// JSON intégré à la page, sans aucune authentification.
+//
+// C'est non officiel/non documenté — ça pourrait casser si Spotify change la
+// structure de cette page — mais ça fonctionne aujourd'hui et ne demande ni
+// clé ni abonnement à qui que ce soit.
+const EMBED_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
 }
 
 export function extractSpotifyPlaylistId(url) {
@@ -31,38 +17,40 @@ export function extractSpotifyPlaylistId(url) {
   return m ? m[1] : null
 }
 
-export async function getPlaylistInfo(playlistId) {
-  const token = await getAccessToken()
-  const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}?fields=name,description,images`, {
-    headers: { Authorization: `Bearer ${token}` }
-  })
+async function fetchEmbedEntity(playlistId) {
+  const res = await fetch(`https://open.spotify.com/embed/playlist/${playlistId}`, { headers: EMBED_HEADERS })
   if (!res.ok) throw new Error('Playlist Spotify introuvable ou privée')
-  return res.json()
+
+  const html = await res.text()
+  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s)
+  if (!m) throw new Error('Impossible de lire les données de la playlist Spotify')
+
+  let data
+  try {
+    data = JSON.parse(m[1])
+  } catch {
+    throw new Error('Impossible de lire les données de la playlist Spotify')
+  }
+
+  const entity = data?.props?.pageProps?.state?.data?.entity
+  if (!entity || entity.type !== 'playlist') throw new Error('Playlist Spotify introuvable ou privée')
+  return entity
 }
 
-// Toutes les pistes de la playlist (paginée par 100 côté Spotify).
-export async function getPlaylistTracks(playlistId) {
-  const token = await getAccessToken()
-  const tracks = []
-  let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),album(name),duration_ms))`
+export async function getPlaylistInfo(playlistId) {
+  const entity = await fetchEmbedEntity(playlistId)
+  return { name: entity.name, description: null }
+}
 
-  while (url) {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    if (!res.ok) throw new Error('Impossible de récupérer les morceaux de la playlist Spotify')
-    const data = await res.json()
-    for (const item of data.items) {
-      if (item.track) {
-        tracks.push({
-          title: item.track.name,
-          artist: item.track.artists.map(a => a.name).join(', '),
-          // Fiable directement depuis Spotify, contrairement à yt-dlp qui ne
-          // renvoie un album que pour le contenu reconnu comme musical.
-          album: item.track.album?.name || null,
-          durationMs: item.track.duration_ms
-        })
-      }
-    }
-    url = data.next
-  }
-  return tracks
+// Limité aux 50 premiers morceaux : c'est tout ce que la page d'embed
+// publique expose (pas de pagination visible, contrairement à l'API
+// officielle) — accepté comme compromis pour n'exiger ni clé ni Premium.
+export async function getPlaylistTracks(playlistId) {
+  const entity = await fetchEmbedEntity(playlistId)
+  return (entity.trackList || []).map(t => ({
+    title: t.title,
+    artist: t.subtitle,
+    album: null,
+    durationMs: t.duration
+  }))
 }

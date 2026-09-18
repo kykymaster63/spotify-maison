@@ -65,8 +65,6 @@ services:
       MINIO_SECRET_KEY: minioadmin123
       MINIO_BUCKET: spotify-maison
       JWT_SECRET: ${JWT_SECRET}
-      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
-      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -92,8 +90,6 @@ services:
       MINIO_SECRET_KEY: minioadmin123
       MINIO_BUCKET: spotify-maison
       JWT_SECRET: ${JWT_SECRET}
-      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
-      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
     volumes:
       - ./backend:/app
       - /app/node_modules

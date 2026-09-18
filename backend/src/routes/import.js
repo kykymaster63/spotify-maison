@@ -140,9 +140,6 @@ export async function importRoutes(fastify) {
     } catch (err) {
       return reply.code(400).send({ error: err.message })
     }
-    if (spotifyTracks.length > 200) {
-      return reply.code(400).send({ error: 'Playlist trop volumineuse pour un aperçu (max 200 morceaux)' })
-    }
 
     // Même logique de dédoublonnage que l'import réel, pour signaler ce qui
     // est déjà en bibliothèque plutôt que "trouvé" tout court.
