@@ -10,8 +10,12 @@ const SHUFFLE_KEY = 'spm_shuffle'
 const OFFLINE_IDS_KEY = 'spm_offline_ids'
 const OFFLINE_META_KEY = 'spm_offline_meta'
 const OFFLINE_CACHE = 'hostify-offline-audio'
+const SKIP_SILENCE_KEY = 'spm_skip_silence'
+const CROSSFADE_ENABLED_KEY = 'spm_crossfade_enabled'
+const CROSSFADE_SECONDS_KEY = 'spm_crossfade_seconds'
 
 export const EQ_BANDS = [60, 250, 1000, 4000, 12000]
+export const CROSSFADE_OPTIONS = [2, 3, 5, 8]
 
 function offlineCacheKey(trackId) {
   // Clé stable (sans token, qui expire) pour retrouver le fichier en cache.
@@ -37,10 +41,19 @@ export const usePlayerStore = defineStore('player', () => {
   // Jam s'appuie là-dessus pour savoir quand rebroadcaster l'état à l'hôte,
   // sans avoir à connaître les détails de seek()/du <audio>.
   const seekVersion = ref(0)
+  const skipSilence = ref(localStorage.getItem(SKIP_SILENCE_KEY) === '1')
+  const crossfadeEnabled = ref(localStorage.getItem(CROSSFADE_ENABLED_KEY) === '1')
+  const crossfadeSeconds = ref(parseFloat(localStorage.getItem(CROSSFADE_SECONDS_KEY) || '5'))
   let lastPersist = 0
   let shuffleOrder = []
   let shufflePos = 0
   let currentBlobUrl = null
+  // ─── Fondu entre morceaux : un second <audio> temporaire monte en volume
+  // pendant que le premier descend, puis devient le nouvel élément actif.
+  let crossfading = false
+  let fadeInterval = null
+  let incomingEl = null
+  let nextBlobUrl = null
 
   window.addEventListener('online', () => isOnline.value = true)
   window.addEventListener('offline', () => isOnline.value = false)
@@ -78,7 +91,8 @@ export const usePlayerStore = defineStore('player', () => {
       const meta = JSON.parse(localStorage.getItem(OFFLINE_META_KEY) || '{}')
       meta[track.id] = {
         id: track.id, title: track.title, artist: track.artist,
-        cover_url: track.cover_url, duration_seconds: track.duration_seconds, status: 'ready'
+        cover_url: track.cover_url, duration_seconds: track.duration_seconds, status: 'ready',
+        trim_start_ms: track.trim_start_ms, trim_end_ms: track.trim_end_ms
       }
       localStorage.setItem(OFFLINE_META_KEY, JSON.stringify(meta))
     } finally {
@@ -116,6 +130,16 @@ export const usePlayerStore = defineStore('player', () => {
     } catch { return null }
   }
 
+  // Résout l'URL à donner à un <audio> pour un morceau donné (hors-ligne ou
+  // streaming), sans toucher à l'état du lecteur — réutilisé par le
+  // chargement normal et par le fondu (qui prépare un second élément).
+  async function resolveSrc(track) {
+    const offlineUrl = await getOfflineUrl(track.id)
+    if (offlineUrl) return { url: offlineUrl, isBlob: true }
+    const token = localStorage.getItem('token')
+    return { url: `/api/tracks/${track.id}/stream?token=${encodeURIComponent(token || '')}`, isBlob: false }
+  }
+
   // ─── Égaliseur (Web Audio API) ─────────────────────────────────────────
   let audioCtx = null
   let filters = []
@@ -128,12 +152,14 @@ export const usePlayerStore = defineStore('player', () => {
     return EQ_BANDS.map(() => 0)
   }
 
+  // Construit la chaîne de filtres une seule fois (indépendamment de tout
+  // élément <audio>), pour pouvoir y rebrancher n'importe quelle source par
+  // la suite (nécessaire pour le fondu, qui promeut un nouvel élément).
   function setupEqualizer() {
     if (audioCtx) return
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext
       audioCtx = new AudioCtx()
-      const source = audioCtx.createMediaElementSource(audio.value)
       filters = EQ_BANDS.map((freq, i) => {
         const f = audioCtx.createBiquadFilter()
         f.type = 'peaking'
@@ -142,11 +168,21 @@ export const usePlayerStore = defineStore('player', () => {
         f.gain.value = eqGains.value[i] || 0
         return f
       })
-      let node = source
-      for (const f of filters) { node.connect(f); node = f }
-      node.connect(audioCtx.destination)
+      for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1])
+      filters[filters.length - 1].connect(audioCtx.destination)
+      connectEqualizerSource(audio.value)
     } catch (e) {
       console.warn('Égaliseur indisponible :', e)
+    }
+  }
+
+  function connectEqualizerSource(el) {
+    if (!audioCtx || !filters.length || !el) return
+    try {
+      const source = audioCtx.createMediaElementSource(el)
+      source.connect(filters[0])
+    } catch (e) {
+      console.warn('Rebranchement égaliseur impossible :', e)
     }
   }
 
@@ -195,59 +231,82 @@ export const usePlayerStore = defineStore('player', () => {
     } catch { /* valeurs transitoires invalides, sans conséquence */ }
   }
 
+  // Attache les écouteurs qui pilotent l'état partagé (progress, isPlaying...)
+  // — réutilisable, car un fondu réussi remplace `audio.value` par un tout
+  // nouvel élément qui doit être équipé exactement comme l'était l'ancien.
+  function attachAudioListeners(el) {
+    el.addEventListener('timeupdate', () => {
+      if (audio.value !== el) return
+      progress.value = el.currentTime
+      duration.value = el.duration || 0
+      updatePositionState()
+
+      const now = Date.now()
+      if (now - lastPersist > 4000) {
+        lastPersist = now
+        localStorage.setItem(LAST_PROGRESS_KEY, String(el.currentTime))
+      }
+
+      if (crossfading || !currentTrack.value) return
+
+      const effectiveEnd = (skipSilence.value && currentTrack.value.trim_end_ms)
+        ? currentTrack.value.trim_end_ms / 1000
+        : duration.value
+      if (!effectiveEnd) return
+      const timeLeft = effectiveEnd - el.currentTime
+
+      if (crossfadeEnabled.value && el.currentTime > 0 && timeLeft <= crossfadeSeconds.value && peekNextIndex() !== null) {
+        startCrossfade()
+      } else if (skipSilence.value && currentTrack.value.trim_end_ms && el.currentTime * 1000 >= currentTrack.value.trim_end_ms - 60) {
+        next()
+      }
+    })
+    el.addEventListener('ended', () => { if (audio.value === el && !crossfading) next() })
+    el.addEventListener('error', () => {
+      if (audio.value !== el) return
+      if (!isOnline.value && currentTrack.value && !offlineIds.value.has(currentTrack.value.id)) {
+        useToastStore().error(`"${currentTrack.value.title}" n'est pas téléchargé pour le hors-ligne`)
+      }
+    })
+    el.addEventListener('play', () => {
+      if (audio.value !== el) return
+      isPlaying.value = true
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
+    })
+    el.addEventListener('pause', () => {
+      if (audio.value !== el) return
+      isPlaying.value = false
+      localStorage.setItem(LAST_PROGRESS_KEY, String(el.currentTime))
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'
+    })
+  }
+
   function initAudio() {
     if (audio.value) return
     audio.value = new Audio()
     audio.value.volume = volume.value
     setupEqualizer()
     setupMediaSession()
-
-    audio.value.addEventListener('timeupdate', () => {
-      progress.value = audio.value.currentTime
-      duration.value = audio.value.duration || 0
-      updatePositionState()
-      // Persiste la position de lecture de temps en temps (pas à chaque tick)
-      const now = Date.now()
-      if (now - lastPersist > 4000) {
-        lastPersist = now
-        localStorage.setItem(LAST_PROGRESS_KEY, String(audio.value.currentTime))
-      }
-    })
-    audio.value.addEventListener('ended', () => next())
-    audio.value.addEventListener('error', () => {
-      if (!isOnline.value && currentTrack.value && !offlineIds.value.has(currentTrack.value.id)) {
-        useToastStore().error(`"${currentTrack.value.title}" n'est pas téléchargé pour le hors-ligne`)
-      }
-    })
-    audio.value.addEventListener('play', () => {
-      isPlaying.value = true
-      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
-    })
-    audio.value.addEventListener('pause', () => {
-      isPlaying.value = false
-      if (audio.value) localStorage.setItem(LAST_PROGRESS_KEY, String(audio.value.currentTime))
-      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'
-    })
+    attachAudioListeners(audio.value)
   }
 
   async function loadSource(track, resumeAt = 0) {
     if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null }
 
-    const offlineUrl = await getOfflineUrl(track.id)
-    if (offlineUrl) {
-      currentBlobUrl = offlineUrl
-      audio.value.src = offlineUrl
-    } else {
-      const token = localStorage.getItem('token')
-      audio.value.src = `/api/tracks/${track.id}/stream?token=${encodeURIComponent(token || '')}`
-    }
+    const { url, isBlob } = await resolveSrc(track)
+    if (isBlob) currentBlobUrl = url
+    audio.value.src = url
+
+    // Sans position explicite à reprendre, on saute le blanc de début détecté
+    // si l'option est activée — mais jamais si on reprend une lecture en cours.
+    const startAt = resumeAt > 0 ? resumeAt : (skipSilence.value ? (track.trim_start_ms || 0) / 1000 : 0)
 
     localStorage.setItem(LAST_TRACK_KEY, track.id)
-    localStorage.setItem(LAST_PROGRESS_KEY, String(resumeAt))
+    localStorage.setItem(LAST_PROGRESS_KEY, String(startAt))
     updateMediaMetadata()
-    if (resumeAt > 0) {
+    if (startAt > 0) {
       const onReady = () => {
-        audio.value.currentTime = resumeAt
+        audio.value.currentTime = startAt
         audio.value.removeEventListener('loadedmetadata', onReady)
       }
       audio.value.addEventListener('loadedmetadata', onReady)
@@ -276,7 +335,104 @@ export const usePlayerStore = defineStore('player', () => {
     if (shuffle.value) rebuildShuffleOrder()
   }
 
+  // Index du morceau qui suivrait un `next()`, sans rien déclencher — utilisé
+  // pour savoir si un fondu est possible.
+  function peekNextIndex() {
+    if (shuffle.value && shuffleOrder.length) {
+      return shufflePos < shuffleOrder.length - 1 ? shuffleOrder[shufflePos + 1] : null
+    }
+    return queueIndex.value < queue.value.length - 1 ? queueIndex.value + 1 : null
+  }
+
+  // ─── Fondu entre morceaux ───────────────────────────────────────────────
+  function cancelCrossfade() {
+    if (fadeInterval) { clearInterval(fadeInterval); fadeInterval = null }
+    if (audio.value) audio.value.volume = volume.value
+    if (incomingEl) { incomingEl.pause(); incomingEl.src = ''; incomingEl = null }
+    if (nextBlobUrl) { URL.revokeObjectURL(nextBlobUrl); nextBlobUrl = null }
+    crossfading = false
+  }
+
+  async function startCrossfade() {
+    const nextIndex = peekNextIndex()
+    if (crossfading || nextIndex === null) return
+    const nextTrack = queue.value[nextIndex]
+    if (!nextTrack) return
+    crossfading = true
+
+    const outgoing = audio.value
+    const startVolume = outgoing.volume
+
+    const el = new Audio()
+    el.volume = 0
+    const { url, isBlob } = await resolveSrc(nextTrack)
+    if (isBlob) nextBlobUrl = url
+    el.src = url
+    const startAt = skipSilence.value ? (nextTrack.trim_start_ms || 0) / 1000 : 0
+    if (startAt > 0) {
+      const onReady = () => { el.currentTime = startAt; el.removeEventListener('loadedmetadata', onReady) }
+      el.addEventListener('loadedmetadata', onReady)
+    }
+    incomingEl = el
+    el.play().catch(() => {})
+
+    const fadeMs = Math.max(500, crossfadeSeconds.value * 1000)
+    const steps = 24
+    let i = 0
+    fadeInterval = setInterval(() => {
+      i++
+      const t = i / steps
+      outgoing.volume = Math.max(0, startVolume * (1 - t))
+      el.volume = Math.min(volume.value, volume.value * t)
+      if (i >= steps) {
+        clearInterval(fadeInterval)
+        fadeInterval = null
+        finishCrossfade(outgoing, el, nextTrack, nextIndex)
+      }
+    }, fadeMs / steps)
+  }
+
+  function finishCrossfade(outgoing, incoming, nextTrack, nextIndex) {
+    outgoing.pause()
+    outgoing.src = ''
+
+    if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null }
+    if (nextBlobUrl) { currentBlobUrl = nextBlobUrl; nextBlobUrl = null }
+
+    queueIndex.value = nextIndex
+    if (shuffle.value && shuffleOrder.length) shufflePos++
+    currentTrack.value = nextTrack
+    audio.value = incoming
+    incoming.volume = volume.value
+    attachAudioListeners(incoming)
+    connectEqualizerSource(incoming)
+    updateMediaMetadata()
+    localStorage.setItem(LAST_TRACK_KEY, nextTrack.id)
+    localStorage.setItem(LAST_PROGRESS_KEY, String(incoming.currentTime))
+    axios.post('/api/me/now-playing', { track_id: nextTrack.id }).catch(() => {})
+
+    incomingEl = null
+    crossfading = false
+  }
+
+  function setSkipSilence(v) {
+    skipSilence.value = v
+    localStorage.setItem(SKIP_SILENCE_KEY, v ? '1' : '0')
+  }
+
+  function setCrossfadeEnabled(v) {
+    crossfadeEnabled.value = v
+    localStorage.setItem(CROSSFADE_ENABLED_KEY, v ? '1' : '0')
+    if (!v) cancelCrossfade()
+  }
+
+  function setCrossfadeSeconds(v) {
+    crossfadeSeconds.value = v
+    localStorage.setItem(CROSSFADE_SECONDS_KEY, String(v))
+  }
+
   async function play(track, newQueue = null) {
+    cancelCrossfade()
     initAudio()
     if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {})
     if (newQueue) {
@@ -319,6 +475,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   function pause() {
+    cancelCrossfade()
     audio.value?.pause()
   }
 
@@ -328,6 +485,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   function next() {
+    cancelCrossfade()
     if (shuffle.value && shuffleOrder.length) {
       if (shufflePos < shuffleOrder.length - 1) {
         shufflePos++
@@ -343,6 +501,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   function prev() {
+    cancelCrossfade()
     if (progress.value > 3) {
       audio.value.currentTime = 0
       return
@@ -363,6 +522,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   function seek(time) {
     if (!audio.value || !isFinite(time)) return
+    cancelCrossfade()
     audio.value.currentTime = Math.max(0, Math.min(time, duration.value || time))
     progress.value = audio.value.currentTime
     seekVersion.value++
@@ -393,7 +553,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   function setVolume(v) {
     volume.value = v
-    if (audio.value) audio.value.volume = v
+    if (audio.value && !crossfading) audio.value.volume = v
     localStorage.setItem('volume', String(v))
   }
 
@@ -412,8 +572,10 @@ export const usePlayerStore = defineStore('player', () => {
   return {
     currentTrack, queue, isPlaying, progress, duration, volume, progressPercent, isExpanded,
     shuffle, eqGains, isOnline, offlineIds, seekVersion,
+    skipSilence, crossfadeEnabled, crossfadeSeconds,
     play, pause, togglePlay, next, prev, seek, setVolume, formatTime, restoreLastTrack, expand, collapse,
     toggleShuffle, setEqGain, resetEq, applyJamState,
+    setSkipSilence, setCrossfadeEnabled, setCrossfadeSeconds,
     downloadForOffline, removeOffline, isOfflineAvailable, isDownloading
   }
 })

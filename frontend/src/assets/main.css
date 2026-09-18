@@ -79,6 +79,41 @@
   --gradient-soft: linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(244,63,94,0.15) 100%);
   --logo-gradient: linear-gradient(135deg, #fb7185 0%, #ef4444 55%, #be123c 100%);
 }
+:root[data-theme="gold"] {
+  --bg: #100c02; --bg-2: #1a1305; --bg-3: #261c08;
+  --accent: #f59e0b; --accent-2: #eab308;
+  --gradient: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(234,179,8,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 55%, #b45309 100%);
+}
+:root[data-theme="indigo"] {
+  --bg: #06050f; --bg-2: #0a0a1a; --bg-3: #101026;
+  --accent: #4338ca; --accent-2: #6366f1;
+  --gradient: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(67,56,202,0.15) 0%, rgba(99,102,241,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #818cf8 0%, #4f46e5 55%, #3730a3 100%);
+}
+:root[data-theme="lavender"] {
+  --bg: #0b0810; --bg-2: #130f1a; --bg-3: #1c1626;
+  --accent: #a78bfa; --accent-2: #f0abfc;
+  --gradient: linear-gradient(135deg, #a78bfa 0%, #f0abfc 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(167,139,250,0.15) 0%, rgba(240,171,252,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 55%, #d946ef 100%);
+}
+:root[data-theme="mono"] {
+  --bg: #050505; --bg-2: #0a0a0a; --bg-3: #121212;
+  --accent: #d4d4d8; --accent-2: #a1a1aa;
+  --gradient: linear-gradient(135deg, #e4e4e7 0%, #a1a1aa 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(212,212,216,0.12) 0%, rgba(161,161,170,0.12) 100%);
+  --logo-gradient: linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 55%, #52525b 100%);
+}
+:root[data-theme="neon"] {
+  --bg: #0a0410; --bg-2: #10081a; --bg-3: #180d26;
+  --accent: #ec4899; --accent-2: #22d3ee;
+  --gradient: linear-gradient(135deg, #ec4899 0%, #22d3ee 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(34,211,238,0.15) 100%);
+  --logo-gradient: linear-gradient(135deg, #f472b6 0%, #ec4899 55%, #22d3ee 100%);
+}
 
 html, body {
   height: 100%;

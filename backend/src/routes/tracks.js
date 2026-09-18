@@ -1,8 +1,14 @@
 import { db } from '../db/knex.js'
 import { uploadFile, getSignedUrl, getStream, getStat, getPartialStream, deleteFile } from '../services/storage.js'
 import { getMediaInfo, detectSource } from '../services/importer.js'
+import { getDuration, detectSilenceTrim } from '../services/audioAnalysis.js'
 import { downloadQueue } from '../services/queue.js'
 import { randomUUID } from 'crypto'
+import { createReadStream, createWriteStream, statSync } from 'fs'
+import { unlink } from 'fs/promises'
+import { pipeline } from 'stream/promises'
+import { join, extname } from 'path'
+import os from 'os'
 
 export async function tracksRoutes(fastify) {
 
@@ -132,14 +138,28 @@ export async function tracksRoutes(fastify) {
     const data = await req.file()
     if (!data) return reply.code(400).send({ error: 'Aucun fichier reçu' })
 
+    // On passe par un fichier temporaire (plutôt que de streamer le fichier
+    // reçu directement vers MinIO) pour pouvoir mesurer sa durée réelle et
+    // détecter les blancs début/fin avant l'upload.
+    const tmpPath = join(os.tmpdir(), `${randomUUID()}${extname(data.filename) || ''}`)
+    await pipeline(data.file, createWriteStream(tmpPath))
+    const stat = statSync(tmpPath)
+
     const storageKey = `${randomUUID()}.mp3`
-    await uploadFile(`audio/${storageKey}`, data.file, null, data.mimetype)
+    await uploadFile(`audio/${storageKey}`, createReadStream(tmpPath), stat.size, data.mimetype)
+
+    const duration = await getDuration(tmpPath).catch(() => null)
+    const { trimStartMs, trimEndMs } = await detectSilenceTrim(tmpPath, duration).catch(() => ({ trimStartMs: 0, trimEndMs: null }))
+    await unlink(tmpPath).catch(() => {})
 
     const [track] = await db('tracks').insert({
       title: data.filename.replace(/\.[^.]+$/, ''),
       storage_key: storageKey,
       source: 'upload',
       status: 'ready',
+      duration_seconds: duration ? Math.round(duration) : null,
+      trim_start_ms: trimStartMs || 0,
+      trim_end_ms: trimEndMs,
       uploaded_by: req.user.sub
     }).returning('*')
 

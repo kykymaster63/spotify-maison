@@ -56,6 +56,13 @@ async function migrate() {
     t.uuid('uploaded_by').references('id').inTable('users').onDelete('SET NULL')
     t.timestamps(true, true)
   })
+  // Blancs début/fin détectés (ffmpeg silencedetect) pour le "sauter les silences"
+  await ensureColumn('tracks', 'trim_start_ms', t => {
+    t.integer('trim_start_ms').defaultTo(0)
+  })
+  await ensureColumn('tracks', 'trim_end_ms', t => {
+    t.integer('trim_end_ms')
+  })
 
   // ─── Playlists ────────────────────────────────────────────────────
   await ensureTable('playlists', t => {

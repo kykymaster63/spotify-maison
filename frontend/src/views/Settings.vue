@@ -60,6 +60,35 @@
       <p class="eq-hint">S'applique en direct, y compris au morceau en cours.</p>
     </section>
 
+    <!-- Lecture -->
+    <section class="section glass-card">
+      <p class="section-title">Lecture</p>
+
+      <label class="switch-row">
+        <div class="switch-text">
+          <span>Sauter les silences</span>
+          <span class="switch-hint">Ignore les blancs détectés en tout début et toute fin de morceau.</span>
+        </div>
+        <span class="switch" :class="{ on: player.skipSilence }" @click="player.setSkipSilence(!player.skipSilence)"></span>
+      </label>
+
+      <label class="switch-row">
+        <div class="switch-text">
+          <span>Fondu entre les morceaux</span>
+          <span class="switch-hint">Le morceau suivant monte en volume pendant que l'actuel redescend.</span>
+        </div>
+        <span class="switch" :class="{ on: player.crossfadeEnabled }" @click="player.setCrossfadeEnabled(!player.crossfadeEnabled)"></span>
+      </label>
+
+      <div v-if="player.crossfadeEnabled" class="fade-options">
+        <button
+          v-for="s in CROSSFADE_OPTIONS" :key="s"
+          class="fade-opt" :class="{ active: player.crossfadeSeconds === s }"
+          @click="player.setCrossfadeSeconds(s)"
+        >{{ s }}s</button>
+      </div>
+    </section>
+
     <!-- Thème -->
     <section class="section glass-card">
       <p class="section-title">Thème</p>
@@ -80,7 +109,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import axios from 'axios'
-import { usePlayerStore, EQ_BANDS } from '../stores/player.js'
+import { usePlayerStore, EQ_BANDS, CROSSFADE_OPTIONS } from '../stores/player.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useToastStore } from '../stores/toast.js'
 import { useThemeStore } from '../stores/theme.js'
@@ -173,6 +202,35 @@ label { font-size: 12px; font-weight: 600; color: var(--text-2); }
   background: var(--gradient); cursor: pointer;
 }
 .eq-hint { font-size: 11px; color: var(--text-3); }
+
+/* Lecture */
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; }
+.switch-text { display: flex; flex-direction: column; gap: 3px; }
+.switch-text span:first-child { font-size: 13px; font-weight: 600; }
+.switch-hint { font-size: 11px; color: var(--text-3); line-height: 1.4; }
+.switch {
+  position: relative; flex-shrink: 0;
+  width: 44px; height: 26px; border-radius: 50px;
+  background: var(--glass-hover); border: 1px solid var(--border);
+  transition: background .2s;
+}
+.switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--text-2); transition: transform .2s, background .2s;
+}
+.switch.on { background: var(--gradient); border-color: transparent; }
+.switch.on::after { transform: translateX(18px); background: #fff; }
+
+.fade-options { display: flex; gap: 8px; }
+.fade-opt {
+  flex: 1; padding: 9px 0; border-radius: var(--r-sm);
+  background: var(--glass); border: 1px solid var(--border);
+  color: var(--text-2); font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: border-color .15s, color .15s;
+}
+.fade-opt:hover { color: var(--text); }
+.fade-opt.active { border-color: var(--accent); color: var(--text); background: var(--glass-hover); }
 
 /* Thème */
 .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
