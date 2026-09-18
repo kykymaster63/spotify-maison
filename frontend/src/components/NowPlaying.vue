@@ -17,31 +17,36 @@
     </button>
 
     <div class="content">
-      <div
-        class="cover-big"
-        @pointerdown="onDragStart" @pointermove="onDragMove" @pointerup="onDragEnd" @pointercancel="onDragEnd"
-      >
-        <img v-if="player.currentTrack?.cover_url" :src="player.currentTrack.cover_url" alt="" />
-        <div v-else class="cover-empty">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
-            <path d="M9 18V6l12-2v12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-            <circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.3"/>
-            <circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.3"/>
-          </svg>
-        </div>
-      </div>
+      <Transition :name="'slide-' + slideDirection" mode="out-in">
+        <div class="track-face" :key="player.currentTrack?.id">
+          <div
+            class="cover-big"
+            :style="coverDragStyle"
+            @pointerdown="onDragStart" @pointermove="onDragMove" @pointerup="onDragEnd" @pointercancel="onDragEnd"
+          >
+            <img v-if="player.currentTrack?.cover_url" :src="player.currentTrack.cover_url" alt="" />
+            <div v-else class="cover-empty">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+                <path d="M9 18V6l12-2v12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                <circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.3"/>
+                <circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.3"/>
+              </svg>
+            </div>
+          </div>
 
-      <div class="meta-row">
-        <div class="meta-text">
-          <span class="title">{{ player.currentTrack?.title }}</span>
-          <span class="artist">{{ player.currentTrack?.artist || 'Artiste inconnu' }}</span>
+          <div class="meta-row">
+            <div class="meta-text">
+              <span class="title">{{ player.currentTrack?.title }}</span>
+              <span class="artist">{{ player.currentTrack?.artist || 'Artiste inconnu' }}</span>
+            </div>
+            <button class="fav-btn big" :class="{ active: player.currentTrack && favorites.isFavorite(player.currentTrack.id), pop: popping }" @click="toggleFav">
+              <svg width="22" height="22" viewBox="-1 -1 26 26" :fill="player.currentTrack && favorites.isFavorite(player.currentTrack.id) ? 'currentColor' : 'none'">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <button class="fav-btn big" :class="{ active: player.currentTrack && favorites.isFavorite(player.currentTrack.id), pop: popping }" @click="toggleFav">
-          <svg width="22" height="22" viewBox="-1 -1 26 26" :fill="player.currentTrack && favorites.isFavorite(player.currentTrack.id) ? 'currentColor' : 'none'">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-          </svg>
-        </button>
-      </div>
+      </Transition>
 
       <div
         class="seek-wrap"
@@ -64,14 +69,14 @@
             <path d="M18.5 4l2.5 2.5-2.5 2.5M18.5 15.5l2.5 2.5-2.5 2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <button class="ctrl-big" @click="guarded(player.prev)" title="Précédent">
+        <button class="ctrl-big" @click="goPrev" title="Précédent">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
         </button>
         <button class="ctrl-big play" @click="guarded(player.togglePlay)">
           <svg v-if="!player.isPlaying" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
         </button>
-        <button class="ctrl-big" @click="guarded(player.next)" title="Suivant">
+        <button class="ctrl-big" @click="goNext" title="Suivant">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
         </button>
         <button class="ctrl-small" :class="{ active: player.repeatMode !== 'off' }" @click="guarded(player.cycleRepeat)" title="Répétition">
@@ -116,7 +121,12 @@ function seekFromEvent(e) {
   const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
   player.seek(ratio * player.duration)
 }
-function onSeekStart(e) { if (!jam.guardControl()) return; seeking = true; e.currentTarget.setPointerCapture?.(e.pointerId); seekFromEvent(e) }
+function onSeekStart(e) {
+  if (!jam.guardControl()) return
+  seeking = true
+  try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* pointeur déjà relâché/invalide */ }
+  seekFromEvent(e)
+}
 function onSeekMove(e) { if (seeking) seekFromEvent(e) }
 function onSeekEnd() { seeking = false }
 
@@ -130,29 +140,65 @@ function toggleFav() {
   }
 }
 
-// Glisser vers le bas pour fermer (comme les bottom-sheets natifs)
+// Glisser vers le bas (sur la poignée ou la pochette) ferme le plein écran ;
+// glisser à droite/gauche sur la pochette change de morceau — l'axe dominant
+// au-delà d'un petit seuil décide du geste, pour ne pas les confondre.
 const dragY = ref(0)
+const dragX = ref(0)
+const slideDirection = ref('next')
 let dragging = false
+let startX = 0
 let startY = 0
+let axisLocked = null
 function onDragStart(e) {
   dragging = true
+  startX = e.clientX
   startY = e.clientY
-  e.currentTarget.setPointerCapture?.(e.pointerId)
+  axisLocked = null
+  try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* pointeur déjà relâché/invalide */ }
 }
 function onDragMove(e) {
   if (!dragging) return
-  dragY.value = Math.max(0, e.clientY - startY)
+  const dx = e.clientX - startX
+  const dy = e.clientY - startY
+  if (!axisLocked && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+    axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+  }
+  if (axisLocked === 'y') dragY.value = Math.max(0, dy)
+  else if (axisLocked === 'x') dragX.value = dx
 }
 function onDragEnd() {
   if (!dragging) return
   dragging = false
-  if (dragY.value > 110) player.collapse()
+  if (axisLocked === 'y' && dragY.value > 110) {
+    player.collapse()
+  } else if (axisLocked === 'x' && Math.abs(dragX.value) > 70) {
+    if (dragX.value < 0) goNext()
+    else goPrev()
+  }
+  dragX.value = 0
   dragY.value = 0
+  axisLocked = null
 }
 const dragStyle = computed(() => dragY.value
   ? { transform: `translateY(${dragY.value}px)`, transition: 'none' }
   : {}
 )
+const coverDragStyle = computed(() => dragX.value
+  ? { transform: `translateX(${dragX.value}px)`, transition: 'none' }
+  : {}
+)
+
+// Même animation (glissée depuis la pochette) qu'on change de morceau au
+// bouton ou en glissant — la direction pilote juste le sens du fondu.
+function goNext() {
+  slideDirection.value = 'next'
+  guarded(player.next)
+}
+function goPrev() {
+  slideDirection.value = 'prev'
+  guarded(player.prev)
+}
 </script>
 
 <style scoped>
@@ -195,6 +241,19 @@ const dragStyle = computed(() => dragY.value
   max-width: 480px; width: 100%; margin: 0 auto;
   overflow-y: auto;
 }
+
+.track-face { width: 100%; }
+
+/* Changement de morceau (bouton ou glissement) : la pochette+titre sortants
+   et entrants glissent en sens inverse l'un de l'autre. */
+.slide-next-enter-active, .slide-next-leave-active,
+.slide-prev-enter-active, .slide-prev-leave-active {
+  transition: transform .22s cubic-bezier(.32,.72,0,1), opacity .22s ease;
+}
+.slide-next-enter-from { transform: translateX(36px); opacity: 0; }
+.slide-next-leave-to { transform: translateX(-36px); opacity: 0; }
+.slide-prev-enter-from { transform: translateX(-36px); opacity: 0; }
+.slide-prev-leave-to { transform: translateX(36px); opacity: 0; }
 
 .cover-big {
   width: min(78vw, 340px); height: min(78vw, 340px); margin: 0 auto 32px;

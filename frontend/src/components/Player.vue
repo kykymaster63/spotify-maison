@@ -112,7 +112,7 @@ function seekFromEvent(e) {
 function onSeekStart(e) {
   if (!jam.guardControl()) return
   dragging = true
-  e.currentTarget.setPointerCapture?.(e.pointerId)
+  try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* pointeur déjà relâché/invalide */ }
   seekFromEvent(e)
 }
 function onSeekMove(e) {
