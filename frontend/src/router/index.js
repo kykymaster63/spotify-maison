@@ -9,6 +9,7 @@ const routes = [
   { path: '/import', name: 'Import', component: () => import('../views/Import.vue') },
   { path: '/favorites', name: 'Favorites', component: () => import('../views/Favorites.vue') },
   { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue') },
+  { path: '/friends', name: 'Friends', component: () => import('../views/Friends.vue') },
   { path: '/playlist/:id', name: 'Playlist', component: () => import('../views/Playlist.vue') }
 ]
 

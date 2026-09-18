@@ -2,7 +2,7 @@
   <div class="favorites-page">
     <header class="page-header">
       <div class="header-cover">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+        <svg width="30" height="30" viewBox="-1 -1 26 26" fill="currentColor">
           <path d="M12 20s-7.5-4.6-9.7-9.1C.7 7.8 2.3 4.5 5.6 4.1c1.9-.2 3.5.7 4.4 2.1.9-1.4 2.5-2.3 4.4-2.1 3.3.4 4.9 3.7 3.3 6.8C19.5 15.4 12 20 12 20z"/>
         </svg>
       </div>
@@ -21,7 +21,7 @@
     <TrackList :tracks="tracks" />
 
     <div v-if="!loading && !tracks.length" class="empty-state">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" opacity=".3">
+      <svg width="32" height="32" viewBox="-1 -1 26 26" fill="none" opacity=".3">
         <path d="M12 20s-7.5-4.6-9.7-9.1C.7 7.8 2.3 4.5 5.6 4.1c1.9-.2 3.5.7 4.4 2.1.9-1.4 2.5-2.3 4.4-2.1 3.3.4 4.9 3.7 3.3 6.8C19.5 15.4 12 20 12 20z" stroke="currentColor" stroke-width="1.4"/>
       </svg>
       <span>Aucun favori pour l'instant — clique sur le coeur d'un morceau.</span>

@@ -59,7 +59,7 @@
           class="fav-btn" :class="{ active: player.currentTrack.is_favorite }"
           @click="toggleFav" title="Ajouter aux favoris"
         >
-          <svg width="17" height="17" viewBox="0 0 24 24" :fill="player.currentTrack.is_favorite ? 'currentColor' : 'none'">
+          <svg width="17" height="17" viewBox="-1 -1 26 26" :fill="player.currentTrack.is_favorite ? 'currentColor' : 'none'">
             <path d="M12 20s-7.5-4.6-9.7-9.1C.7 7.8 2.3 4.5 5.6 4.1c1.9-.2 3.5.7 4.4 2.1.9-1.4 2.5-2.3 4.4-2.1 3.3.4 4.9 3.7 3.3 6.8C19.5 15.4 12 20 12 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
           </svg>
         </button>

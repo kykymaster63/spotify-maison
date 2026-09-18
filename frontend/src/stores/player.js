@@ -182,6 +182,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (currentTrack.value?.id !== track.id) {
       currentTrack.value = track
       loadSource(track)
+      axios.post('/api/me/now-playing', { track_id: track.id }).catch(() => {})
     }
     await audio.value.play()
   }

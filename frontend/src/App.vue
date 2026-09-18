@@ -24,14 +24,41 @@ import ToastStack from './components/ToastStack.vue'
 const auth = useAuthStore()
 const player = usePlayerStore()
 
-// Barre d'espace = lecture/pause, sauf si on tape dans un champ
+// Raccourcis clavier (marchent aussi avec les boutons programmables d'une
+// souris/clavier Logitech une fois mappés sur ces touches dans Logitech Options)
 function onKeydown(e) {
-  if (e.code !== 'Space') return
   const tag = document.activeElement?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA') return
   if (!player.currentTrack) return
-  e.preventDefault()
-  player.togglePlay()
+
+  switch (e.code) {
+    case 'Space':
+      e.preventDefault()
+      player.togglePlay()
+      break
+    case 'ArrowRight':
+      e.preventDefault()
+      player.seek(player.progress + 10)
+      break
+    case 'ArrowLeft':
+      e.preventDefault()
+      player.seek(player.progress - 10)
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      player.setVolume(Math.min(1, Math.round((player.volume + 0.1) * 100) / 100))
+      break
+    case 'ArrowDown':
+      e.preventDefault()
+      player.setVolume(Math.max(0, Math.round((player.volume - 0.1) * 100) / 100))
+      break
+    case 'KeyN':
+      player.next()
+      break
+    case 'KeyP':
+      player.prev()
+      break
+  }
 }
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)

@@ -42,34 +42,38 @@
 
       <!-- Favori -->
       <button v-else class="fav-btn" :class="{ active: track.is_favorite }" @click.stop="toggleFav(track)" title="Favori">
-        <svg width="15" height="15" viewBox="0 0 24 24" :fill="track.is_favorite ? 'currentColor' : 'none'">
+        <svg width="15" height="15" viewBox="-1 -1 26 26" :fill="track.is_favorite ? 'currentColor' : 'none'">
           <path d="M12 20s-7.5-4.6-9.7-9.1C.7 7.8 2.3 4.5 5.6 4.1c1.9-.2 3.5.7 4.4 2.1.9-1.4 2.5-2.3 4.4-2.1 3.3.4 4.9 3.7 3.3 6.8C19.5 15.4 12 20 12 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-        </svg>
-      </button>
-
-      <!-- Ajouter à une playlist -->
-      <button
-        class="add-pl-btn" :class="{ invisible: track.status !== 'ready' }"
-        @click.stop="openAddModal(track)" title="Ajouter à une playlist"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M15 6H3M15 12H3M15 18H3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          <path d="M19 8v8M15 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
         </svg>
       </button>
 
       <!-- Durée -->
       <div class="track-duration">{{ fmt(track.duration_seconds) }}</div>
 
-      <!-- Supprimer (uploadeur uniquement) -->
-      <button
-        class="delete-btn" :class="{ invisible: track.uploaded_by !== auth.user?.id }"
-        @click.stop="removeTrack(track)" title="Supprimer"
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-          <path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0-.8 12.1a2 2 0 01-2 1.9H8.8a2 2 0 01-2-1.9L6 7h12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
+      <!-- Menu (ajouter à une playlist / supprimer) -->
+      <div v-if="track.status === 'ready'" class="row-menu">
+        <button class="menu-btn" @click.stop="toggleMenu(track)" title="Plus d'options">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+          </svg>
+        </button>
+        <div v-if="openMenuId === track.id" class="menu-popover" @click.stop>
+          <button class="menu-item" @click="openAddModal(track)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M15 6H3M15 12H3M9 18H3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M19 8v8M15 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            Ajouter à une playlist
+          </button>
+          <button v-if="track.uploaded_by === auth.user?.id" class="menu-item danger" @click="removeTrack(track)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0-.8 12.1a2 2 0 01-2 1.9H8.8a2 2 0 01-2-1.9L6 7h12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Supprimer
+          </button>
+        </div>
+      </div>
+      <div v-else class="row-menu-spacer"></div>
     </div>
 
     <AddToPlaylistModal :track="modalTrack" @close="modalTrack = null" />
@@ -86,7 +90,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import { usePlayerStore } from '../stores/player.js'
 import { useAuthStore } from '../stores/auth.js'
@@ -97,9 +101,18 @@ const player = usePlayerStore()
 const auth = useAuthStore()
 const toast = useToastStore()
 const modalTrack = ref(null)
+const openMenuId = ref(null)
+
+function toggleMenu(track) {
+  openMenuId.value = openMenuId.value === track.id ? null : track.id
+}
+function closeMenu() { openMenuId.value = null }
+onMounted(() => document.addEventListener('click', closeMenu))
+onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 function openAddModal(track) {
   modalTrack.value = track
+  openMenuId.value = null
 }
 
 function playTrack(track) {
@@ -127,6 +140,7 @@ async function toggleFav(track) {
 }
 
 async function removeTrack(track) {
+  openMenuId.value = null
   if (!confirm(`Supprimer "${track.title}" définitivement ?`)) return
   try {
     await axios.delete(`/api/tracks/${track.id}`)
@@ -144,7 +158,7 @@ async function removeTrack(track) {
 .track-list { display: flex; flex-direction: column; }
 .track-row {
   display: grid;
-  grid-template-columns: 32px 40px 1fr auto auto auto auto;
+  grid-template-columns: 32px 40px 1fr auto auto auto;
   align-items: center; gap: 12px;
   padding: 8px 10px; border-radius: var(--r-sm);
   cursor: pointer; transition: background .15s;
@@ -189,25 +203,32 @@ async function removeTrack(track) {
 /* Durée */
 .track-duration { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
-/* Ajouter à une playlist */
-.add-pl-btn {
+/* Menu "..." (ajouter à une playlist / supprimer) */
+.row-menu { position: relative; }
+.row-menu-spacer { width: 28px; }
+.menu-btn {
   display: flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 50%;
   background: none; border: none; cursor: pointer;
   color: var(--text-3); flex-shrink: 0; transition: color .15s, background .15s;
 }
-.add-pl-btn:hover { color: var(--accent); background: var(--glass-hover); }
-.add-pl-btn.invisible { visibility: hidden; pointer-events: none; }
-
-/* Supprimer */
-.delete-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border-radius: 50%;
-  background: none; border: none; cursor: pointer;
-  color: var(--text-3); flex-shrink: 0; transition: color .15s, background .15s;
+.menu-btn:hover { color: var(--text); background: var(--glass-hover); }
+.menu-popover {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
+  min-width: 190px; padding: 6px;
+  background: var(--bg-3); border: 1px solid var(--border-2); border-radius: var(--r-sm);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; gap: 2px;
 }
-.delete-btn:hover { color: #f87171; background: rgba(248,113,113,0.1); }
-.delete-btn.invisible { visibility: hidden; pointer-events: none; }
+.menu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 6px;
+  background: none; border: none; cursor: pointer; text-align: left;
+  color: var(--text); font-size: 13px; font-family: inherit; white-space: nowrap;
+  transition: background .15s;
+}
+.menu-item:hover { background: var(--glass-hover); }
+.menu-item.danger { color: #f87171; }
 
 /* Badge */
 .status-badge {

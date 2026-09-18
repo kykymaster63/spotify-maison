@@ -29,6 +29,13 @@ async function migrate() {
     t.string('avatar_url')
     t.timestamps(true, true)
   })
+  // "En train d'écouter" — mis à jour en direct pour l'activité des amis
+  await ensureColumn('users', 'current_track_id', t => {
+    t.uuid('current_track_id').references('id').inTable('tracks').onDelete('SET NULL')
+  })
+  await ensureColumn('users', 'current_track_at', t => {
+    t.timestamp('current_track_at')
+  })
 
   // ─── Tracks ───────────────────────────────────────────────────────
   await ensureTable('tracks', t => {

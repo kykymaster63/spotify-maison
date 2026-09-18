@@ -59,6 +59,18 @@
       </div>
       <p class="eq-hint">S'applique en direct, y compris au morceau en cours.</p>
     </section>
+
+    <!-- Diagnostic (temporaire, pour déboguer l'affichage sur iPhone) -->
+    <section class="section glass-card diag">
+      <p class="section-title">Diagnostic affichage</p>
+      <div class="diag-row"><span>Mode plein écran (standalone)</span><strong :class="diag.standalone ? 'ok' : 'bad'">{{ diag.standalone ? 'Oui' : 'Non' }}</strong></div>
+      <div class="diag-row"><span>Zone sûre en haut</span><strong>{{ diag.safeTop }}</strong></div>
+      <div class="diag-row"><span>Zone sûre en bas</span><strong>{{ diag.safeBottom }}</strong></div>
+      <div class="diag-row"><span>window.innerHeight</span><strong>{{ diag.innerHeight }}</strong></div>
+      <div class="diag-row"><span>visualViewport.height</span><strong>{{ diag.visualViewport }}</strong></div>
+      <div class="diag-row"><span>screen.height</span><strong>{{ diag.screenHeight }}</strong></div>
+      <p class="eq-hint">Envoie une capture de ce bloc si le souci de barre persiste — ça permet de trancher sans deviner.</p>
+    </section>
   </div>
 </template>
 
@@ -80,6 +92,31 @@ const profileMsg = ref(null)
 
 function fmtFreq(f) {
   return f >= 1000 ? `${f / 1000}kHz` : `${f}Hz`
+}
+
+const diag = reactive({ standalone: false, safeTop: '?', safeBottom: '?', innerHeight: '?', visualViewport: '?', screenHeight: '?' })
+function readDiagnostics() {
+  diag.standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+
+  // Les variables CSS ne résolvent pas env()/calc() quand on les lit
+  // directement : on mesure via un élément-sonde dont le padding, lui,
+  // est bien calculé en pixels réels par le navigateur.
+  const probe = document.createElement('div')
+  probe.style.position = 'fixed'
+  probe.style.top = '0'
+  probe.style.paddingTop = 'env(safe-area-inset-top, 0px)'
+  probe.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)'
+  probe.style.visibility = 'hidden'
+  probe.style.pointerEvents = 'none'
+  document.body.appendChild(probe)
+  const style = getComputedStyle(probe)
+  diag.safeTop = style.paddingTop
+  diag.safeBottom = style.paddingBottom
+  document.body.removeChild(probe)
+
+  diag.innerHeight = `${window.innerHeight}px`
+  diag.visualViewport = window.visualViewport ? `${Math.round(window.visualViewport.height)}px` : 'non supporté'
+  diag.screenHeight = `${window.screen.height}px`
 }
 
 async function loadProfile() {
@@ -112,7 +149,7 @@ async function saveProfile() {
   }
 }
 
-onMounted(loadProfile)
+onMounted(() => { loadProfile(); readDiagnostics() })
 </script>
 
 <style scoped>
@@ -156,4 +193,11 @@ label { font-size: 12px; font-weight: 600; color: var(--text-2); }
   background: var(--gradient); cursor: pointer;
 }
 .eq-hint { font-size: 11px; color: var(--text-3); }
+
+/* Diagnostic */
+.diag-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.diag-row span { color: var(--text-2); }
+.diag-row strong { font-variant-numeric: tabular-nums; }
+.diag-row strong.ok { color: var(--accent-2); }
+.diag-row strong.bad { color: #f87171; }
 </style>
