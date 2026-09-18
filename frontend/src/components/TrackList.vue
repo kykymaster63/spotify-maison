@@ -51,8 +51,32 @@
       <!-- Durée -->
       <div class="track-duration">{{ fmt(track.duration_seconds) }}</div>
 
+      <!-- Menu pour un morceau en erreur : juste réessayer / supprimer -->
+      <div v-if="track.status === 'error'" class="row-menu">
+        <button class="menu-btn" @click.stop="toggleMenu(track)" title="Plus d'options">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+          </svg>
+        </button>
+        <div v-if="openMenuId === track.id" class="menu-popover" @click.stop>
+          <button class="menu-item" @click="retryTrack(track)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M4 12a8 8 0 0114-5.3M20 12a8 8 0 01-14 5.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M18 3v4h-4M6 21v-4h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Réessayer
+          </button>
+          <button v-if="track.uploaded_by === auth.user?.id" class="menu-item danger" @click="removeTrack(track)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0-.8 12.1a2 2 0 01-2 1.9H8.8a2 2 0 01-2-1.9L6 7h12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Supprimer
+          </button>
+        </div>
+      </div>
+
       <!-- Menu (hors-ligne / ajouter à une playlist / supprimer) -->
-      <div v-if="track.status === 'ready'" class="row-menu">
+      <div v-else-if="track.status === 'ready'" class="row-menu">
         <button class="menu-btn" @click.stop="toggleMenu(track)" title="Plus d'options">
           <svg v-if="player.isOfflineAvailable(track.id)" width="15" height="15" viewBox="0 0 24 24" fill="none" class="offline-dot">
             <circle cx="12" cy="12" r="10" fill="currentColor"/>
@@ -175,6 +199,17 @@ function toggleFav(track) {
     // "Pop" seulement quand on like, pas quand on retire.
     poppingId.value = track.id
     setTimeout(() => { if (poppingId.value === track.id) poppingId.value = null }, 420)
+  }
+}
+
+async function retryTrack(track) {
+  openMenuId.value = null
+  try {
+    await axios.post(`/api/tracks/${track.id}/retry`)
+    track.status = 'pending'
+    toast.success(`Nouvelle tentative pour "${track.title}"`)
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Impossible de relancer ce morceau')
   }
 }
 

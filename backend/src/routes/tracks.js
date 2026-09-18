@@ -75,6 +75,32 @@ export async function tracksRoutes(fastify) {
     return { ok: true }
   })
 
+  // POST /tracks/:id/retry — relancer le téléchargement d'un morceau en
+  // erreur (uploadeur uniquement) — utile après un souci ponctuel côté
+  // YouTube plutôt que de tout réimporter depuis zéro.
+  fastify.post('/tracks/:id/retry', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+    const track = await db('tracks').where({ id: req.params.id }).first()
+    if (!track) return reply.code(404).send({ error: 'Track introuvable' })
+    if (track.uploaded_by !== req.user.sub) {
+      return reply.code(403).send({ error: "Tu ne peux relancer que tes propres morceaux" })
+    }
+    if (track.status !== 'error') {
+      return reply.code(400).send({ error: "Ce morceau n'est pas en erreur" })
+    }
+    if (!track.source_url) {
+      return reply.code(400).send({ error: 'Impossible de relancer ce morceau (pas de source)' })
+    }
+
+    await db('tracks').where({ id: track.id }).update({ status: 'pending' })
+    await downloadQueue.add('download-media', {
+      trackId: track.id,
+      url: track.source_url,
+      userId: req.user.sub
+    })
+
+    return { ok: true }
+  })
+
   // GET /tracks/:id/stream — stream audio (accepte ?token= pour les balises <audio>)
   fastify.get('/tracks/:id/stream', { onRequest: [fastify.authenticateStream] }, async (req, reply) => {
     const track = await db('tracks').where({ id: req.params.id, status: 'ready' }).first()
