@@ -41,9 +41,9 @@
       </div>
 
       <!-- Favori -->
-      <button v-else class="fav-btn" :class="{ active: track.is_favorite }" @click.stop="toggleFav(track)" title="Favori">
-        <svg width="15" height="15" viewBox="-1 -1 26 26" :fill="track.is_favorite ? 'currentColor' : 'none'">
-          <path d="M12 20s-7.5-4.6-9.7-9.1C.7 7.8 2.3 4.5 5.6 4.1c1.9-.2 3.5.7 4.4 2.1.9-1.4 2.5-2.3 4.4-2.1 3.3.4 4.9 3.7 3.3 6.8C19.5 15.4 12 20 12 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <button v-else class="fav-btn" :class="{ active: favorites.isFavorite(track.id) }" @click.stop="toggleFav(track)" title="Favori">
+        <svg width="15" height="15" viewBox="-1 -1 26 26" :fill="favorites.isFavorite(track.id) ? 'currentColor' : 'none'">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
         </svg>
       </button>
 
@@ -116,11 +116,13 @@ import axios from 'axios'
 import { usePlayerStore } from '../stores/player.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useToastStore } from '../stores/toast.js'
+import { useFavoritesStore } from '../stores/favorites.js'
 import AddToPlaylistModal from './AddToPlaylistModal.vue'
 const props = defineProps({ tracks: { type: Array, default: () => [] } })
 const player = usePlayerStore()
 const auth = useAuthStore()
 const toast = useToastStore()
+const favorites = useFavoritesStore()
 const modalTrack = ref(null)
 const openMenuId = ref(null)
 
@@ -149,15 +151,8 @@ function addedInfo(track) {
   if (track.uploader) return `importé par ${track.uploader}`
   return null
 }
-async function toggleFav(track) {
-  const next = !track.is_favorite
-  track.is_favorite = next // optimiste
-  try {
-    if (next) await axios.post(`/api/tracks/${track.id}/favorite`)
-    else await axios.delete(`/api/tracks/${track.id}/favorite`)
-  } catch {
-    track.is_favorite = !next
-  }
+function toggleFav(track) {
+  favorites.toggle(track)
 }
 
 async function downloadOffline(track) {

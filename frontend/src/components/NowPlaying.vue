@@ -33,9 +33,9 @@
           <span class="title">{{ player.currentTrack?.title }}</span>
           <span class="artist">{{ player.currentTrack?.artist || 'Artiste inconnu' }}</span>
         </div>
-        <button class="fav-btn big" :class="{ active: player.currentTrack?.is_favorite }" @click="toggleFav">
-          <svg width="22" height="22" viewBox="-1 -1 26 26" :fill="player.currentTrack?.is_favorite ? 'currentColor' : 'none'">
-            <path d="M12 20s-7.5-4.6-9.7-9.1C.7 7.8 2.3 4.5 5.6 4.1c1.9-.2 3.5.7 4.4 2.1.9-1.4 2.5-2.3 4.4-2.1 3.3.4 4.9 3.7 3.3 6.8C19.5 15.4 12 20 12 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <button class="fav-btn big" :class="{ active: player.currentTrack && favorites.isFavorite(player.currentTrack.id) }" @click="toggleFav">
+          <svg width="22" height="22" viewBox="-1 -1 26 26" :fill="player.currentTrack && favorites.isFavorite(player.currentTrack.id) ? 'currentColor' : 'none'">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
           </svg>
         </button>
       </div>
@@ -89,10 +89,11 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import axios from 'axios'
 import { usePlayerStore } from '../stores/player.js'
+import { useFavoritesStore } from '../stores/favorites.js'
 
 const player = usePlayerStore()
+const favorites = useFavoritesStore()
 
 let seeking = false
 function seekFromEvent(e) {
@@ -104,17 +105,8 @@ function onSeekStart(e) { seeking = true; e.currentTarget.setPointerCapture?.(e.
 function onSeekMove(e) { if (seeking) seekFromEvent(e) }
 function onSeekEnd() { seeking = false }
 
-async function toggleFav() {
-  const track = player.currentTrack
-  if (!track) return
-  const next = !track.is_favorite
-  track.is_favorite = next
-  try {
-    if (next) await axios.post(`/api/tracks/${track.id}/favorite`)
-    else await axios.delete(`/api/tracks/${track.id}/favorite`)
-  } catch {
-    track.is_favorite = !next
-  }
+function toggleFav() {
+  if (player.currentTrack) favorites.toggle(player.currentTrack)
 }
 
 // Glisser vers le bas pour fermer (comme les bottom-sheets natifs)

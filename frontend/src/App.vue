@@ -17,6 +17,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from './stores/auth.js'
 import { usePlayerStore } from './stores/player.js'
 import { useToastStore } from './stores/toast.js'
+import { useFavoritesStore } from './stores/favorites.js'
 import Player from './components/Player.vue'
 import Navbar from './components/Navbar.vue'
 import TopBar from './components/TopBar.vue'
@@ -25,6 +26,7 @@ import ToastStack from './components/ToastStack.vue'
 const auth = useAuthStore()
 const player = usePlayerStore()
 const toast = useToastStore()
+const favorites = useFavoritesStore()
 
 function onOffline() { toast.error('Hors ligne — seuls les morceaux téléchargés sont disponibles') }
 function onOnline() { toast.success('Connexion rétablie') }
@@ -69,7 +71,10 @@ onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('offline', onOffline)
   window.addEventListener('online', onOnline)
-  if (auth.isLoggedIn) player.restoreLastTrack()
+  if (auth.isLoggedIn) {
+    player.restoreLastTrack()
+    favorites.load()
+  }
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)

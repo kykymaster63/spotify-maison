@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { useFavoritesStore } from './favorites.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token'))
@@ -14,6 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('token', newToken)
     localStorage.setItem('user', JSON.stringify(newUser))
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+    useFavoritesStore().load()
   }
 
   function logout() {
@@ -22,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     delete axios.defaults.headers.common['Authorization']
+    useFavoritesStore().clear()
   }
 
   // Init axios si token existant
