@@ -84,6 +84,8 @@ async function processSpotifyPlaylistImport(job) {
         const [inserted] = await db('tracks').insert({
           title: hit.title,
           artist: hit.artist,
+          // L'album vient de Spotify (fiable), pas de la recherche YouTube.
+          album: t.album || null,
           duration_seconds: hit.duration ? Math.round(hit.duration) : (t.durationMs ? Math.round(t.durationMs / 1000) : null),
           cover_url: hit.thumbnail,
           source_url: hit.url,

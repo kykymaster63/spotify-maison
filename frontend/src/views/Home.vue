@@ -42,38 +42,72 @@
       </label>
     </section>
 
-    <!-- Récemment écouté -->
+    <!-- Écoutés récemment -->
     <section v-if="history.length" class="section">
       <div class="section-head">
-        <p class="section-title" style="margin:0">Récemment écouté</p>
+        <p class="section-title" style="margin:0">Écoutés récemment</p>
         <router-link to="/history" class="see-all">Tout voir</router-link>
       </div>
-      <TrackList :tracks="history.slice(0, 5)" />
+      <div class="hscroll">
+        <MediaTile
+          v-for="t in history.slice(0, 10)" :key="t.id"
+          :cover="t.cover_url" :title="t.title" :subtitle="t.artist || 'Artiste inconnu'"
+          @click="playTrack(t)"
+        />
+      </div>
     </section>
 
-    <!-- Ajoutés récemment -->
-    <section class="section">
+    <!-- Albums récemment ajoutés -->
+    <section v-if="recentAlbums.length" class="section">
       <div class="section-head">
-        <p class="section-title" style="margin:0">Ajoutés récemment</p>
-        <router-link to="/library" class="see-all">Tout voir</router-link>
+        <p class="section-title" style="margin:0">Albums récemment ajoutés</p>
       </div>
-      <TrackList :tracks="recentTracks" />
+      <div class="hscroll">
+        <MediaTile
+          v-for="a in recentAlbums" :key="a.artist + '|' + a.album"
+          :cover="a.coverUrl" :title="a.album" :subtitle="a.artist"
+          @click="router.push(`/artist/${encodeURIComponent(a.artist)}/album/${encodeURIComponent(a.album)}`)"
+        />
+      </div>
+    </section>
+
+    <!-- Artistes du moment -->
+    <section v-if="trendingArtists.length" class="section">
+      <div class="section-head">
+        <p class="section-title" style="margin:0">Artistes du moment</p>
+        <router-link to="/artists" class="see-all">Tout voir</router-link>
+      </div>
+      <div class="hscroll">
+        <MediaTile
+          v-for="a in trendingArtists" :key="a.name"
+          rounded
+          :cover="a.coverUrl" :title="a.name" :subtitle="`${a.playCount} écoute${a.playCount > 1 ? 's' : ''}`"
+          @click="router.push(`/artist/${encodeURIComponent(a.name)}`)"
+        />
+      </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth.js'
 import { useToastStore } from '../stores/toast.js'
-import TrackList from '../components/TrackList.vue'
+import { usePlayerStore } from '../stores/player.js'
+import { useJamStore } from '../stores/jam.js'
+import MediaTile from '../components/MediaTile.vue'
 
 const auth = useAuthStore()
 const toast = useToastStore()
-const tracks = ref([])
-const recentTracks = computed(() => tracks.value.slice(0, 5))
+const player = usePlayerStore()
+const jam = useJamStore()
+const router = useRouter()
+
 const history = ref([])
+const recentAlbums = ref([])
+const trendingArtists = ref([])
 const dragging = ref(false)
 let pollTimer
 
@@ -85,14 +119,24 @@ function greet() {
   return 'Bonsoir'
 }
 
-async function load() {
-  const { data } = await axios.get('/api/tracks')
-  tracks.value = data
-}
-
 async function loadHistory() {
   const { data } = await axios.get('/api/me/history')
   history.value = data
+}
+
+async function loadRecentAlbums() {
+  const { data } = await axios.get('/api/albums/recent', { params: { limit: 8 } })
+  recentAlbums.value = data
+}
+
+async function loadTrendingArtists() {
+  const { data } = await axios.get('/api/artists/trending', { params: { days: 30, limit: 6 } })
+  trendingArtists.value = data
+}
+
+function playTrack(track) {
+  if (jam.isFollower) jam.leave()
+  player.play(track, history.value)
 }
 
 async function uploadFile(e) {
@@ -103,17 +147,18 @@ async function uploadFile(e) {
     const { data } = await axios.post('/api/tracks/upload', fd, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    tracks.value.unshift(data)
     toast.success(`"${data.title}" ajouté à ta bibliothèque`)
   }
+  loadRecentAlbums()
 }
 
-// Réaffiche la liste régulièrement pour faire apparaître les imports YouTube
-// terminés entre-temps (ajoutés depuis l'onglet YouTube)
+// Réaffiche les listes régulièrement pour faire apparaître les imports
+// terminés entre-temps (ajoutés depuis l'onglet Import)
 onMounted(() => {
-  load()
   loadHistory()
-  pollTimer = setInterval(() => { load(); loadHistory() }, 6000)
+  loadRecentAlbums()
+  loadTrendingArtists()
+  pollTimer = setInterval(() => { loadHistory(); loadRecentAlbums() }, 6000)
 })
 onUnmounted(() => clearInterval(pollTimer))
 </script>
@@ -129,6 +174,16 @@ h1 { font-size: 28px; font-weight: 800; background: var(--gradient); -webkit-bac
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .see-all { font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; }
 .see-all:hover { opacity: .8; }
+
+/* Sections horizontales style Spotify */
+.hscroll {
+  display: flex; gap: 16px;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -20px; padding: 0 20px 4px;
+  scrollbar-width: none;
+}
+.hscroll::-webkit-scrollbar { display: none; }
 
 /* Bandeau promo YouTube */
 .yt-promo {

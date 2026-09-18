@@ -44,7 +44,7 @@ export async function getPlaylistInfo(playlistId) {
 export async function getPlaylistTracks(playlistId) {
   const token = await getAccessToken()
   const tracks = []
-  let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),duration_ms))`
+  let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),album(name),duration_ms))`
 
   while (url) {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
@@ -55,6 +55,9 @@ export async function getPlaylistTracks(playlistId) {
         tracks.push({
           title: item.track.name,
           artist: item.track.artists.map(a => a.name).join(', '),
+          // Fiable directement depuis Spotify, contrairement à yt-dlp qui ne
+          // renvoie un album que pour le contenu reconnu comme musical.
+          album: item.track.album?.name || null,
           durationMs: item.track.duration_ms
         })
       }

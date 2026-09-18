@@ -12,6 +12,7 @@ import { playlistsRoutes } from './routes/playlists.js'
 import { importRoutes } from './routes/import.js'
 import { friendsRoutes } from './routes/friends.js'
 import { jamRoutes } from './routes/jam.js'
+import { libraryRoutes } from './routes/library.js'
 
 const fastify = Fastify({ logger: true })
 
@@ -60,6 +61,7 @@ await fastify.register(playlistsRoutes, { prefix: '/api' })
 await fastify.register(importRoutes, { prefix: '/api' })
 await fastify.register(friendsRoutes, { prefix: '/api' })
 await fastify.register(jamRoutes, { prefix: '/api' })
+await fastify.register(libraryRoutes, { prefix: '/api' })
 
 fastify.get('/api/health', async () => ({ status: 'ok', timestamp: new Date() }))
 

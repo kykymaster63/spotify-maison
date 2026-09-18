@@ -2,6 +2,7 @@ import { db } from '../db/knex.js'
 import { uploadFile, getSignedUrl, getStream, getStat, getPartialStream, deleteFile } from '../services/storage.js'
 import { getMediaInfo, detectSource, extractYoutubeId } from '../services/importer.js'
 import { getDuration, detectSilenceTrim } from '../services/audioAnalysis.js'
+import { parseFile } from 'music-metadata'
 import { downloadQueue } from '../services/queue.js'
 import { randomUUID } from 'crypto'
 import { createReadStream, createWriteStream, statSync } from 'fs'
@@ -150,10 +151,19 @@ export async function tracksRoutes(fastify) {
 
     const duration = await getDuration(tmpPath).catch(() => null)
     const { trimStartMs, trimEndMs } = await detectSilenceTrim(tmpPath, duration).catch(() => ({ trimStartMs: 0, trimEndMs: null }))
+
+    // Tags ID3/Vorbis (titre, artiste, album) quand le fichier en a — sinon
+    // on retombe sur le nom du fichier comme avant. Sans ça, `album` reste
+    // toujours vide pour les uploads directs, et la vue Artiste les range
+    // tous dans "Singles" même quand le fichier est correctement tagué.
+    const tags = await parseFile(tmpPath).catch(() => null)
+    const common = tags?.common || {}
     await unlink(tmpPath).catch(() => {})
 
     const [track] = await db('tracks').insert({
-      title: data.filename.replace(/\.[^.]+$/, ''),
+      title: common.title || data.filename.replace(/\.[^.]+$/, ''),
+      artist: common.artist || common.artists?.[0] || null,
+      album: common.album || null,
       storage_key: storageKey,
       source: 'upload',
       status: 'ready',
@@ -200,6 +210,10 @@ export async function tracksRoutes(fastify) {
     const [track] = await db('tracks').insert({
       title: info.title,
       artist: info.uploader || info.channel,
+      // yt-dlp ne remonte un album que pour le contenu reconnu comme
+      // musical (YouTube Music...) — sinon reste vide, ce qui bascule la
+      // piste dans le regroupement "Singles" côté vue Artiste.
+      album: info.album || null,
       // SoundCloud renvoie une durée en secondes avec décimales (ex. 7200.255)
       duration_seconds: info.duration ? Math.round(info.duration) : null,
       cover_url: info.thumbnail,
