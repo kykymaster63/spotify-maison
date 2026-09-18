@@ -10,22 +10,14 @@
         <path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
       <input v-model="query" @input="search" placeholder="Titre, artiste, album..." class="search-input" autofocus />
-      <button v-if="query" @click="query = ''; results = []" class="clear-btn">
+      <button v-if="query" @click="query = ''; loadAll()" class="clear-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
       </button>
     </div>
 
-    <div v-if="!query" class="empty-search">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" opacity=".2">
-        <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.2"/>
-        <path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-      </svg>
-      <p>Tape quelque chose pour chercher</p>
-    </div>
-
-    <div v-else-if="results.length === 0 && query" class="empty-search">
+    <div v-if="query && results.length === 0" class="empty-search">
       <p>Aucun résultat pour "{{ query }}"</p>
     </div>
 
@@ -34,7 +26,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import TrackList from '../components/TrackList.vue'
 
@@ -42,14 +34,22 @@ const query = ref('')
 const results = ref([])
 let timer
 
+async function loadAll() {
+  const { data } = await axios.get('/api/tracks')
+  results.value = data
+}
+
 function search() {
   clearTimeout(timer)
-  if (!query.value.trim()) { results.value = []; return }
+  if (!query.value.trim()) { loadAll(); return }
   timer = setTimeout(async () => {
     const { data } = await axios.get('/api/tracks', { params: { search: query.value } })
     results.value = data
   }, 280)
 }
+
+// Liste complète dès l'arrivée sur la page, avant même de taper quoi que ce soit.
+onMounted(loadAll)
 </script>
 
 <style scoped>
