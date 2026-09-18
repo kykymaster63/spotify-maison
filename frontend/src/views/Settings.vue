@@ -103,6 +103,8 @@
         </button>
       </div>
     </section>
+
+    <router-link to="/spotify-import" class="hidden-link">Import Spotify — aperçu</router-link>
   </div>
 </template>
 
@@ -244,4 +246,12 @@ label { font-size: 12px; font-weight: 600; color: var(--text-2); }
 .theme-swatch:hover { color: var(--text); }
 .theme-swatch.active { border-color: var(--accent); color: var(--text); }
 .swatch-dot { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; }
+
+/* Volontairement discret : pas une carte, pas dans la nav — juste
+   atteignable pour qui sait qu'elle est là. */
+.hidden-link {
+  display: block; text-align: center; margin-top: 8px;
+  font-size: 11px; color: var(--text-3); text-decoration: none;
+}
+.hidden-link:hover { color: var(--text-2); }
 </style>

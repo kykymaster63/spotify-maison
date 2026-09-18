@@ -1,5 +1,5 @@
-import { getMediaInfo, searchMedia, streamPreview } from '../services/importer.js'
-import { extractSpotifyPlaylistId, getPlaylistInfo } from '../services/spotify.js'
+import { getMediaInfo, searchMedia, streamPreview, extractYoutubeId } from '../services/importer.js'
+import { extractSpotifyPlaylistId, getPlaylistInfo, getPlaylistTracks } from '../services/spotify.js'
 import { downloadQueue } from '../services/queue.js'
 import { db } from '../db/knex.js'
 
@@ -113,5 +113,74 @@ export async function importRoutes(fastify) {
     })
 
     return reply.code(202).send({ ...playlist, message: 'Import en cours — les morceaux vont apparaître au fil du téléchargement.' })
+  })
+
+  // POST /import/spotify-playlist/preview — même chose que ci-dessus mais ne
+  // crée rien : cherche chaque piste sur YouTube et renvoie juste ce qui a
+  // été trouvé, pour décider si ça vaut le coup de lancer le vrai import.
+  // Synchrone (une recherche par piste) : lent sur une grosse playlist, mais
+  // évite d'avoir à faire persister un état d'aperçu quelque part.
+  fastify.post('/import/spotify-playlist/preview', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['url'],
+        properties: { url: { type: 'string' } }
+      }
+    }
+  }, async (req, reply) => {
+    const spotifyPlaylistId = extractSpotifyPlaylistId(req.body.url)
+    if (!spotifyPlaylistId) return reply.code(400).send({ error: 'Lien de playlist Spotify invalide' })
+
+    let info, spotifyTracks
+    try {
+      info = await getPlaylistInfo(spotifyPlaylistId)
+      spotifyTracks = await getPlaylistTracks(spotifyPlaylistId)
+    } catch (err) {
+      return reply.code(400).send({ error: err.message })
+    }
+    if (spotifyTracks.length > 200) {
+      return reply.code(400).send({ error: 'Playlist trop volumineuse pour un aperçu (max 200 morceaux)' })
+    }
+
+    // Même logique de dédoublonnage que l'import réel, pour signaler ce qui
+    // est déjà en bibliothèque plutôt que "trouvé" tout court.
+    const existing = await db('tracks')
+      .where({ source: 'youtube' })
+      .whereIn('status', ['ready', 'pending', 'downloading'])
+      .select('source_url')
+
+    const tracks = []
+    for (const t of spotifyTracks) {
+      let hit = null
+      try {
+        const results = await searchMedia(`${t.title} ${t.artist}`, 'youtube', 1)
+        hit = results[0] || null
+      } catch { /* recherche échouée pour cette piste : traité comme introuvable */ }
+
+      if (!hit) {
+        tracks.push({ title: t.title, artist: t.artist, status: 'not_found' })
+        continue
+      }
+
+      const hitId = extractYoutubeId(hit.url)
+      const inLibrary = hitId && existing.some(e => e.source_url && extractYoutubeId(e.source_url) === hitId)
+
+      tracks.push({
+        title: t.title,
+        artist: t.artist,
+        status: inLibrary ? 'in_library' : 'found',
+        matchTitle: hit.title,
+        matchThumbnail: hit.thumbnail
+      })
+    }
+
+    return {
+      playlistName: info.name,
+      total: tracks.length,
+      foundCount: tracks.filter(t => t.status !== 'not_found').length,
+      tracks
+    }
   })
 }

@@ -14,7 +14,8 @@ const routes = [
   { path: '/artists', name: 'Artists', component: () => import('../views/Artists.vue') },
   { path: '/artist/:artist', name: 'ArtistDetail', component: () => import('../views/ArtistDetail.vue') },
   { path: '/artist/:artist/album/:album', name: 'AlbumDetail', component: () => import('../views/AlbumDetail.vue') },
-  { path: '/playlist/:id', name: 'Playlist', component: () => import('../views/Playlist.vue') }
+  { path: '/playlist/:id', name: 'Playlist', component: () => import('../views/Playlist.vue') },
+  { path: '/spotify-import', name: 'SpotifyImportTool', component: () => import('../views/SpotifyImportTool.vue') }
 ]
 
 const router = createRouter({
