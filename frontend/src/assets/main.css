@@ -50,6 +50,7 @@
 
 html, body {
   height: 100%;
+  height: 100dvh; /* défensif : au cas où 100% résolve différemment de 100dvh sur WebKit */
   background: var(--bg);
   color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -59,7 +60,7 @@ html, body {
   overscroll-behavior-y: none; /* pas de "rubber band" / pull-to-refresh sur iOS */
 }
 
-#app { height: 100%; display: flex; flex-direction: column; }
+#app { height: 100%; height: 100dvh; display: flex; flex-direction: column; }
 
 /* Safari iOS teinte brièvement le bouton tapé (gris/bleu) : sans ça, deux
    boutons identiques (ex. précédent/suivant) semblent avoir une couleur
