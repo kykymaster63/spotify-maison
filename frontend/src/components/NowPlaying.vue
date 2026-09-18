@@ -268,8 +268,11 @@ function goPrev() {
 
 .meta-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
 .meta-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.title { font-size: 20px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; }
-.artist { font-size: 14px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
+/* Une seule ligne (jamais de retour à la ligne) : sinon un titre/artiste
+   long agrandit le bloc et, comme .content est centré verticalement, ça
+   décale toute la rangée de boutons en dessous selon la longueur du texte. */
+.title { font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artist { font-size: 14px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fav-btn.big { width: 40px; height: 40px; flex-shrink: 0; margin-top: 2px; }
 
 .seek-wrap { padding: 10px 0; cursor: pointer; touch-action: none; }
