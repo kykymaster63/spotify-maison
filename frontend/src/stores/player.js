@@ -176,6 +176,17 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
+  // iOS suspend l'AudioContext dès qu'il est créé hors d'un geste utilisateur
+  // (ex. au chargement de l'app, avant tout clic) OU quand l'écran se
+  // verrouille pendant la lecture. Une fois suspendu, l'élément <audio>
+  // continue d'avancer (isPlaying passe à true, la progression défile...)
+  // mais plus AUCUN son ne sort, puisque tout l'audio passe par ce contexte
+  // depuis l'ajout de l'égaliseur. Il faut donc le relancer explicitement à
+  // chaque tentative de lecture, pas seulement au premier `play()`.
+  function resumeAudioContext() {
+    if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {})
+  }
+
   function connectEqualizerSource(el) {
     if (!audioCtx || !filters.length || !el) return
     try {
@@ -199,7 +210,7 @@ export const usePlayerStore = defineStore('player', () => {
   // ─── Media Session (Centre de contrôle / écran verrouillé iOS) ────────
   function setupMediaSession() {
     if (!('mediaSession' in navigator)) return
-    navigator.mediaSession.setActionHandler('play', () => audio.value?.play())
+    navigator.mediaSession.setActionHandler('play', () => { resumeAudioContext(); audio.value?.play() })
     navigator.mediaSession.setActionHandler('pause', () => pause())
     navigator.mediaSession.setActionHandler('previoustrack', () => prev())
     navigator.mediaSession.setActionHandler('nexttrack', () => next())
@@ -288,6 +299,14 @@ export const usePlayerStore = defineStore('player', () => {
     setupEqualizer()
     setupMediaSession()
     attachAudioListeners(audio.value)
+
+    // Au retour au premier plan (déverrouillage d'écran, changement d'appli),
+    // on retente le réveil de l'AudioContext directement, sans attendre que
+    // l'utilisateur retape sur play — iOS le suspend souvent pendant la mise
+    // en veille de l'écran alors que la lecture semblait toujours "en cours".
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resumeAudioContext()
+    })
   }
 
   async function loadSource(track, resumeAt = 0) {
@@ -434,7 +453,7 @@ export const usePlayerStore = defineStore('player', () => {
   async function play(track, newQueue = null) {
     cancelCrossfade()
     initAudio()
-    if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {})
+    resumeAudioContext()
     if (newQueue) {
       queue.value = newQueue
       queueIndex.value = newQueue.findIndex(t => t.id === track.id)
@@ -480,8 +499,12 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   function togglePlay() {
-    if (isPlaying.value) pause()
-    else audio.value?.play()
+    if (isPlaying.value) {
+      pause()
+    } else {
+      resumeAudioContext()
+      audio.value?.play()
+    }
   }
 
   function next() {
@@ -533,6 +556,7 @@ export const usePlayerStore = defineStore('player', () => {
   // extrapole le temps écoulé depuis pour rattraper la position réelle.
   async function applyJamState({ track, positionMs = 0, isPlaying: playing, updatedAt }) {
     initAudio()
+    resumeAudioContext()
     const targetSeconds = Math.max(0, (positionMs + (playing ? Date.now() - updatedAt : 0)) / 1000)
 
     if (track && currentTrack.value?.id !== track.id) {

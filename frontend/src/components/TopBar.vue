@@ -11,6 +11,13 @@
     </router-link>
 
     <div class="actions">
+      <button class="icon-btn" @click="showWhatsNew = true" title="Nouveautés">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M18 8a6 6 0 10-12 0c0 3.4-1 5.4-2 7h16c-1-1.6-2-3.6-2-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M9.5 19a2.5 2.5 0 005 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <span v-if="changelog.hasUnread" class="jam-dot"></span>
+      </button>
       <button class="icon-btn" :class="{ active: jam.isActive }" @click="showJam = true" title="Jam">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <path d="M4 18V9m4 9V5m4 13v-6m4 6V3m4 15v-9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
@@ -40,6 +47,7 @@
     </div>
 
     <JamModal v-model="showJam" />
+    <WhatsNewModal v-model="showWhatsNew" />
   </header>
 </template>
 
@@ -47,13 +55,17 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useJamStore } from '../stores/jam.js'
+import { useChangelogStore } from '../stores/changelog.js'
 import { useRouter } from 'vue-router'
 import JamModal from './JamModal.vue'
+import WhatsNewModal from './WhatsNewModal.vue'
 
 const auth = useAuthStore()
 const jam = useJamStore()
+const changelog = useChangelogStore()
 const router = useRouter()
 const showJam = ref(false)
+const showWhatsNew = ref(false)
 function logout() { auth.logout(); router.push('/login') }
 </script>
 
