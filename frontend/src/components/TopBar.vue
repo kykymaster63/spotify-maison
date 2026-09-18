@@ -7,7 +7,7 @@
           <path d="M10.1 8.2v5.6l5-2.8z" fill="white"/>
         </svg>
       </span>
-      <span class="brand-text">Spotify Maison</span>
+      <span class="brand-text">Hostify</span>
     </router-link>
 
     <div class="actions">

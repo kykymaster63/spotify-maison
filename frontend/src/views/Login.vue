@@ -18,7 +18,7 @@
             </g>
           </svg>
         </div>
-        <span class="logo-text">Spotify Maison</span>
+        <span class="logo-text">Hostify</span>
       </div>
 
       <div class="login-card glass-card">

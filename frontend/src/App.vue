@@ -16,6 +16,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from './stores/auth.js'
 import { usePlayerStore } from './stores/player.js'
+import { useToastStore } from './stores/toast.js'
 import Player from './components/Player.vue'
 import Navbar from './components/Navbar.vue'
 import TopBar from './components/TopBar.vue'
@@ -23,6 +24,10 @@ import ToastStack from './components/ToastStack.vue'
 
 const auth = useAuthStore()
 const player = usePlayerStore()
+const toast = useToastStore()
+
+function onOffline() { toast.error('Hors ligne — seuls les morceaux téléchargés sont disponibles') }
+function onOnline() { toast.success('Connexion rétablie') }
 
 // Raccourcis clavier (marchent aussi avec les boutons programmables d'une
 // souris/clavier Logitech une fois mappés sur ces touches dans Logitech Options)
@@ -62,9 +67,15 @@ function onKeydown(e) {
 }
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('offline', onOffline)
+  window.addEventListener('online', onOnline)
   if (auth.isLoggedIn) player.restoreLastTrack()
 })
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('offline', onOffline)
+  window.removeEventListener('online', onOnline)
+})
 </script>
 
 <style>

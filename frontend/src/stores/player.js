@@ -1,13 +1,22 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { useToastStore } from './toast.js'
 
 const LAST_TRACK_KEY = 'spm_last_track_id'
 const LAST_PROGRESS_KEY = 'spm_last_progress'
 const EQ_KEY = 'spm_eq_gains'
 const SHUFFLE_KEY = 'spm_shuffle'
+const OFFLINE_IDS_KEY = 'spm_offline_ids'
+const OFFLINE_META_KEY = 'spm_offline_meta'
+const OFFLINE_CACHE = 'hostify-offline-audio'
 
 export const EQ_BANDS = [60, 250, 1000, 4000, 12000]
+
+function offlineCacheKey(trackId) {
+  // Clé stable (sans token, qui expire) pour retrouver le fichier en cache.
+  return `/offline-track/${trackId}`
+}
 
 export const usePlayerStore = defineStore('player', () => {
   const audio = ref(null)
@@ -21,9 +30,87 @@ export const usePlayerStore = defineStore('player', () => {
   const isExpanded = ref(false)
   const shuffle = ref(localStorage.getItem(SHUFFLE_KEY) === '1')
   const eqGains = ref(loadEqGains())
+  const isOnline = ref(navigator.onLine)
+  const offlineIds = ref(loadOfflineIds())
+  const downloadingIds = ref(new Set())
   let lastPersist = 0
   let shuffleOrder = []
   let shufflePos = 0
+  let currentBlobUrl = null
+
+  window.addEventListener('online', () => isOnline.value = true)
+  window.addEventListener('offline', () => isOnline.value = false)
+
+  function loadOfflineIds() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(OFFLINE_IDS_KEY) || '[]')
+      if (Array.isArray(saved)) return new Set(saved)
+    } catch { /* ignore */ }
+    return new Set()
+  }
+  function persistOfflineIds() {
+    localStorage.setItem(OFFLINE_IDS_KEY, JSON.stringify([...offlineIds.value]))
+  }
+
+  function isOfflineAvailable(trackId) { return offlineIds.value.has(trackId) }
+  function isDownloading(trackId) { return downloadingIds.value.has(trackId) }
+
+  // Télécharge le fichier complet (sans Range) et le stocke dans le cache du
+  // navigateur pour qu'il reste jouable sans réseau.
+  async function downloadForOffline(track) {
+    if (!('caches' in window) || offlineIds.value.has(track.id) || downloadingIds.value.has(track.id)) return
+    downloadingIds.value.add(track.id)
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/tracks/${track.id}/stream?token=${encodeURIComponent(token || '')}`)
+      if (!res.ok) throw new Error('download failed')
+      const cache = await caches.open(OFFLINE_CACHE)
+      await cache.put(offlineCacheKey(track.id), res)
+      offlineIds.value.add(track.id)
+      persistOfflineIds()
+
+      // Sauvegarde les métadonnées essentielles pour pouvoir reprendre la
+      // lecture même sans réseau (l'API /tracks/:id ne répondrait pas hors-ligne).
+      const meta = JSON.parse(localStorage.getItem(OFFLINE_META_KEY) || '{}')
+      meta[track.id] = {
+        id: track.id, title: track.title, artist: track.artist,
+        cover_url: track.cover_url, duration_seconds: track.duration_seconds, status: 'ready'
+      }
+      localStorage.setItem(OFFLINE_META_KEY, JSON.stringify(meta))
+    } finally {
+      downloadingIds.value.delete(track.id)
+    }
+  }
+
+  async function removeOffline(trackId) {
+    if ('caches' in window) {
+      const cache = await caches.open(OFFLINE_CACHE)
+      await cache.delete(offlineCacheKey(trackId))
+    }
+    offlineIds.value.delete(trackId)
+    persistOfflineIds()
+    const meta = JSON.parse(localStorage.getItem(OFFLINE_META_KEY) || '{}')
+    delete meta[trackId]
+    localStorage.setItem(OFFLINE_META_KEY, JSON.stringify(meta))
+  }
+
+  function getOfflineMeta(trackId) {
+    try {
+      const meta = JSON.parse(localStorage.getItem(OFFLINE_META_KEY) || '{}')
+      return meta[trackId] || null
+    } catch { return null }
+  }
+
+  async function getOfflineUrl(trackId) {
+    if (!('caches' in window) || !offlineIds.value.has(trackId)) return null
+    try {
+      const cache = await caches.open(OFFLINE_CACHE)
+      const res = await cache.match(offlineCacheKey(trackId))
+      if (!res) return null
+      const blob = await res.blob()
+      return URL.createObjectURL(blob)
+    } catch { return null }
+  }
 
   // ─── Égaliseur (Web Audio API) ─────────────────────────────────────────
   let audioCtx = null
@@ -86,7 +173,7 @@ export const usePlayerStore = defineStore('player', () => {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentTrack.value.title || 'Titre inconnu',
       artist: currentTrack.value.artist || '',
-      album: 'Spotify Maison',
+      album: 'Hostify',
       artwork: currentTrack.value.cover_url
         ? [{ src: currentTrack.value.cover_url, sizes: '512x512', type: 'image/jpeg' }]
         : []
@@ -123,6 +210,11 @@ export const usePlayerStore = defineStore('player', () => {
       }
     })
     audio.value.addEventListener('ended', () => next())
+    audio.value.addEventListener('error', () => {
+      if (!isOnline.value && currentTrack.value && !offlineIds.value.has(currentTrack.value.id)) {
+        useToastStore().error(`"${currentTrack.value.title}" n'est pas téléchargé pour le hors-ligne`)
+      }
+    })
     audio.value.addEventListener('play', () => {
       isPlaying.value = true
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
@@ -134,9 +226,18 @@ export const usePlayerStore = defineStore('player', () => {
     })
   }
 
-  function loadSource(track, resumeAt = 0) {
-    const token = localStorage.getItem('token')
-    audio.value.src = `/api/tracks/${track.id}/stream?token=${encodeURIComponent(token || '')}`
+  async function loadSource(track, resumeAt = 0) {
+    if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null }
+
+    const offlineUrl = await getOfflineUrl(track.id)
+    if (offlineUrl) {
+      currentBlobUrl = offlineUrl
+      audio.value.src = offlineUrl
+    } else {
+      const token = localStorage.getItem('token')
+      audio.value.src = `/api/tracks/${track.id}/stream?token=${encodeURIComponent(token || '')}`
+    }
+
     localStorage.setItem(LAST_TRACK_KEY, track.id)
     localStorage.setItem(LAST_PROGRESS_KEY, String(resumeAt))
     updateMediaMetadata()
@@ -181,7 +282,7 @@ export const usePlayerStore = defineStore('player', () => {
     }
     if (currentTrack.value?.id !== track.id) {
       currentTrack.value = track
-      loadSource(track)
+      await loadSource(track)
       axios.post('/api/me/now-playing', { track_id: track.id }).catch(() => {})
     }
     await audio.value.play()
@@ -193,16 +294,24 @@ export const usePlayerStore = defineStore('player', () => {
     const trackId = localStorage.getItem(LAST_TRACK_KEY)
     if (!trackId || currentTrack.value) return
     const resumeAt = parseFloat(localStorage.getItem(LAST_PROGRESS_KEY) || '0')
+
+    let track = null
     try {
-      const { data: track } = await axios.get(`/api/tracks/${trackId}`)
-      if (track.status !== 'ready') return
-      initAudio()
-      currentTrack.value = track
-      queue.value = [track]
-      queueIndex.value = 0
-      loadSource(track, resumeAt)
-      progress.value = resumeAt
-    } catch { /* morceau supprimé ou inaccessible : on ignore */ }
+      const { data } = await axios.get(`/api/tracks/${trackId}`)
+      if (data.status === 'ready') track = data
+    } catch {
+      // Hors-ligne ou serveur inatteignable : on retombe sur la version
+      // téléchargée si elle existe, plutôt que d'abandonner la reprise.
+      track = getOfflineMeta(trackId)
+    }
+    if (!track) return
+
+    initAudio()
+    currentTrack.value = track
+    queue.value = [track]
+    queueIndex.value = 0
+    await loadSource(track, resumeAt)
+    progress.value = resumeAt
   }
 
   function pause() {
@@ -274,8 +383,9 @@ export const usePlayerStore = defineStore('player', () => {
 
   return {
     currentTrack, queue, isPlaying, progress, duration, volume, progressPercent, isExpanded,
-    shuffle, eqGains,
+    shuffle, eqGains, isOnline, offlineIds,
     play, pause, togglePlay, next, prev, seek, setVolume, formatTime, restoreLastTrack, expand, collapse,
-    toggleShuffle, setEqGain, resetEq
+    toggleShuffle, setEqGain, resetEq,
+    downloadForOffline, removeOffline, isOfflineAvailable, isDownloading
   }
 })

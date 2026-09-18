@@ -62,7 +62,7 @@ fastify.get('/api/health', async () => ({ status: 'ok', timestamp: new Date() })
 try {
   await ensureBucket()
   await fastify.listen({ port: config.port, host: '0.0.0.0' })
-  console.log(`🎵 Spotify Maison backend running on port ${config.port}`)
+  console.log(`🎵 Hostify backend running on port ${config.port}`)
 } catch (err) {
   fastify.log.error(err)
   process.exit(1)

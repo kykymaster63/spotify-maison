@@ -16,8 +16,8 @@ export default defineConfig({
       manifest: {
         id: '/',
         scope: '/',
-        name: 'Spotify Maison',
-        short_name: 'SpotifyMaison',
+        name: 'Hostify',
+        short_name: 'Hostify',
         description: 'Votre musique, partout',
         theme_color: '#0d0d1a',
         background_color: '#07070f',
@@ -30,18 +30,12 @@ export default defineConfig({
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
+      // Le cache audio hors-ligne est géré nous-mêmes (voir stores/player.js) :
+      // l'endpoint /stream répond en 206 (Range) selon le lecteur, et laisser
+      // Workbox le mettre en cache automatiquement risquerait de figer un
+      // morceau sur un unique segment partiel plutôt que le fichier complet.
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\/api\/tracks\/.*\/stream/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'audio-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 }
-            }
-          }
-        ]
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       }
     })
   ],

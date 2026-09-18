@@ -50,10 +50,14 @@
       <!-- Durée -->
       <div class="track-duration">{{ fmt(track.duration_seconds) }}</div>
 
-      <!-- Menu (ajouter à une playlist / supprimer) -->
+      <!-- Menu (hors-ligne / ajouter à une playlist / supprimer) -->
       <div v-if="track.status === 'ready'" class="row-menu">
         <button class="menu-btn" @click.stop="toggleMenu(track)" title="Plus d'options">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+          <svg v-if="player.isOfflineAvailable(track.id)" width="15" height="15" viewBox="0 0 24 24" fill="none" class="offline-dot">
+            <circle cx="12" cy="12" r="10" fill="currentColor"/>
+            <path d="M8.5 12.5l2.5 2.5 5-5" stroke="var(--bg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg v-else width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
           </svg>
         </button>
@@ -64,6 +68,23 @@
               <path d="M19 8v8M15 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
             </svg>
             Ajouter à une playlist
+          </button>
+          <button
+            v-if="!player.isOfflineAvailable(track.id)" class="menu-item"
+            :disabled="player.isDownloading(track.id)" @click="downloadOffline(track)"
+          >
+            <span v-if="player.isDownloading(track.id)" class="spinner-xs"></span>
+            <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            {{ player.isDownloading(track.id) ? 'Téléchargement...' : 'Écouter hors-ligne' }}
+          </button>
+          <button v-else class="menu-item" @click="removeOfflineTrack(track)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            Retirer le hors-ligne
           </button>
           <button v-if="track.uploaded_by === auth.user?.id" class="menu-item danger" @click="removeTrack(track)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -137,6 +158,22 @@ async function toggleFav(track) {
   } catch {
     track.is_favorite = !next
   }
+}
+
+async function downloadOffline(track) {
+  openMenuId.value = null
+  try {
+    await player.downloadForOffline(track)
+    toast.success(`"${track.title}" disponible hors-ligne`)
+  } catch {
+    toast.error('Téléchargement hors-ligne impossible')
+  }
+}
+
+async function removeOfflineTrack(track) {
+  openMenuId.value = null
+  await player.removeOffline(track.id)
+  toast.success(`"${track.title}" retiré du hors-ligne`)
 }
 
 async function removeTrack(track) {
@@ -213,6 +250,13 @@ async function removeTrack(track) {
   color: var(--text-3); flex-shrink: 0; transition: color .15s, background .15s;
 }
 .menu-btn:hover { color: var(--text); background: var(--glass-hover); }
+.offline-dot { color: var(--accent-2); }
+.menu-item[disabled] { opacity: .6; cursor: default; }
+.spinner-xs {
+  width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.25);
+  border-top-color: var(--text); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 .menu-popover {
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
   min-width: 190px; padding: 6px;
