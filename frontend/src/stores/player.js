@@ -369,6 +369,33 @@ export const usePlayerStore = defineStore('player', () => {
     return repeatMode.value === 'all' && queue.value.length ? 0 : null
   }
 
+  // Symétrique de peekNextIndex(), pour savoir si un "précédent" mènerait
+  // réellement à un autre morceau (voir goToPrevTrack ci-dessous).
+  function peekPrevIndex() {
+    if (shuffle.value && shuffleOrder.length) {
+      if (shufflePos > 0) return shuffleOrder[shufflePos - 1]
+      return repeatMode.value === 'all' ? shuffleOrder[shuffleOrder.length - 1] : null
+    }
+    if (queueIndex.value > 0) return queueIndex.value - 1
+    return repeatMode.value === 'all' && queue.value.length ? queue.value.length - 1 : null
+  }
+
+  function hasNextTrack() { return peekNextIndex() !== null }
+  function hasPrevTrack() { return peekPrevIndex() !== null }
+
+  // Navigation "pure" vers le morceau précédent : contrairement à prev()
+  // (le bouton ◁, qui redémarre le morceau en cours passé 3s — pratique au
+  // clic), le glissement doit toujours mener à un autre morceau ou ne rien
+  // faire, jamais redémarrer celui en cours.
+  function goToPrevTrack() {
+    cancelCrossfade()
+    const idx = peekPrevIndex()
+    if (idx === null) return
+    if (shuffle.value && shuffleOrder.length) shufflePos = shuffleOrder.indexOf(idx)
+    queueIndex.value = idx
+    play(queue.value[idx])
+  }
+
   // ─── Fondu entre morceaux ───────────────────────────────────────────────
   function cancelCrossfade() {
     if (fadeInterval) { clearInterval(fadeInterval); fadeInterval = null }
@@ -638,6 +665,7 @@ export const usePlayerStore = defineStore('player', () => {
     skipSilence, crossfadeEnabled, crossfadeSeconds,
     play, pause, togglePlay, next, prev, seek, setVolume, formatTime, restoreLastTrack, expand, collapse,
     toggleShuffle, cycleRepeat, setEqGain, resetEq, applyJamState,
+    hasNextTrack, hasPrevTrack, goToPrevTrack,
     setSkipSilence, setCrossfadeEnabled, setCrossfadeSeconds,
     downloadForOffline, removeOffline, isOfflineAvailable, isDownloading
   }

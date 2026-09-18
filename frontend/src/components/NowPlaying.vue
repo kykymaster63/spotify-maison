@@ -150,11 +150,18 @@ let dragging = false
 let startX = 0
 let startY = 0
 let axisLocked = null
+// Petit historique récent (position, temps) pour détecter un "flick" rapide :
+// sans ça, il fallait glisser sur une grande distance même pour un geste vif.
+let moveHistory = []
+const SWIPE_DISTANCE = 60   // px : seuil si on relâche lentement
+const SWIPE_VELOCITY = 0.5  // px/ms : seuil si on relâche vite, même sur peu de distance
+
 function onDragStart(e) {
   dragging = true
   startX = e.clientX
   startY = e.clientY
   axisLocked = null
+  moveHistory = [{ t: performance.now(), x: 0 }]
   try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* pointeur déjà relâché/invalide */ }
 }
 function onDragMove(e) {
@@ -164,21 +171,36 @@ function onDragMove(e) {
   if (!axisLocked && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
     axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
   }
-  if (axisLocked === 'y') dragY.value = Math.max(0, dy)
-  else if (axisLocked === 'x') dragX.value = dx
+  if (axisLocked === 'y') {
+    dragY.value = Math.max(0, dy)
+  } else if (axisLocked === 'x') {
+    // Résistance quand il n'y a rien dans cette direction (fin de file sans
+    // répétition, etc.) : le doigt avance mais la pochette suit à peine, pour
+    // ne pas donner l'impression d'un geste "pour rien" qui va au bout.
+    const blocked = (dx < 0 && !player.hasNextTrack()) || (dx > 0 && !player.hasPrevTrack())
+    dragX.value = blocked ? Math.sign(dx) * Math.min(Math.abs(dx) * 0.3, 44) : dx
+    moveHistory.push({ t: performance.now(), x: dx })
+    if (moveHistory.length > 6) moveHistory.shift()
+  }
 }
 function onDragEnd() {
   if (!dragging) return
   dragging = false
   if (axisLocked === 'y' && dragY.value > 110) {
     player.collapse()
-  } else if (axisLocked === 'x' && Math.abs(dragX.value) > 70) {
-    if (dragX.value < 0) goNext()
-    else goPrev()
+  } else if (axisLocked === 'x') {
+    const oldest = moveHistory[0]
+    const newest = moveHistory[moveHistory.length - 1]
+    const dt = newest ? newest.t - oldest.t : 0
+    const velocity = dt > 0 ? (newest.x - oldest.x) / dt : 0
+    const committed = Math.abs(dragX.value) > SWIPE_DISTANCE || Math.abs(velocity) > SWIPE_VELOCITY
+    if (committed && dragX.value < 0 && player.hasNextTrack()) goNext()
+    else if (committed && dragX.value > 0 && player.hasPrevTrack()) goPrevSwipe()
   }
   dragX.value = 0
   dragY.value = 0
   axisLocked = null
+  moveHistory = []
 }
 const dragStyle = computed(() => dragY.value
   ? { transform: `translateY(${dragY.value}px)`, transition: 'none' }
@@ -198,6 +220,13 @@ function goNext() {
 function goPrev() {
   slideDirection.value = 'prev'
   guarded(player.prev)
+}
+// Le glissement (contrairement au bouton ◁) ne doit jamais se contenter de
+// redémarrer le morceau en cours : soit il y a un précédent, soit rien ne
+// se passe (voir goToPrevTrack dans le store).
+function goPrevSwipe() {
+  slideDirection.value = 'prev'
+  guarded(player.goToPrevTrack)
 }
 </script>
 
